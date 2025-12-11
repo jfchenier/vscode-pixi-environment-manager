@@ -50,7 +50,7 @@ suite('Environment Manager Test Suite', () => {
             }
         }
 
-        const envManager = new TestEnvironmentManager(mockPixi, mockContext, mockExec);
+        const envManager = new TestEnvironmentManager(mockPixi, mockContext, undefined, mockExec);
 
         // We need to mock vscode.workspace.workspaceFolders
         // But we can't easily write to `vscode` namespace in this test runner context safely without affecting others?
@@ -124,7 +124,7 @@ suite('Environment Manager Test Suite', () => {
             }
         }
 
-        const envManager = new TestEnvironmentManager(mockPixi, mockContext, mockExec);
+        const envManager = new TestEnvironmentManager(mockPixi, mockContext, undefined, mockExec);
         await envManager.autoActivate();
 
         assert.strictEqual(envVarsReference.get('CONDA_PREFIX'), '/pixi/env/spark');
@@ -159,7 +159,7 @@ suite('Environment Manager Test Suite', () => {
                 return vscode.Uri.file('/mock/workspace');
             }
         }
-        const envManager = new TestEnvironmentManager(mockPixi, mockContext, mockExec);
+        const envManager = new TestEnvironmentManager(mockPixi, mockContext, undefined, mockExec);
 
         await envManager.deactivate(true);
 

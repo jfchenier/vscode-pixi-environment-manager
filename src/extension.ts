@@ -5,8 +5,9 @@ import { EnvironmentManager } from './environment';
 export function activate(context: vscode.ExtensionContext) {
     console.log('Pixi VSCode Active');
 
-    const pixiManager = new PixiManager();
-    const envManager = new EnvironmentManager(pixiManager, context);
+    const outputChannel = vscode.window.createOutputChannel("Pixi");
+    const pixiManager = new PixiManager(outputChannel);
+    const envManager = new EnvironmentManager(pixiManager, context, outputChannel);
 
     let createEnvDisposable = vscode.commands.registerCommand('pixi.createEnvironment', () => {
         envManager.createEnvironment();

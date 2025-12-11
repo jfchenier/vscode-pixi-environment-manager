@@ -66,12 +66,20 @@ export async function downloadFile(url: string, dest: string, retries: number = 
 export class PixiManager {
     private _workspaceUri: vscode.Uri | undefined;
     private _pixiName: string;
+    private _outputChannel: vscode.OutputChannel | undefined;
 
-    constructor() {
+    constructor(outputChannel?: vscode.OutputChannel) {
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             this._workspaceUri = vscode.workspace.workspaceFolders[0].uri;
         }
         this._pixiName = process.platform === 'win32' ? 'pixi.exe' : 'pixi';
+        this._outputChannel = outputChannel;
+    }
+
+    private log(message: string) {
+        if (this._outputChannel) {
+            this._outputChannel.appendLine(`[PixiManager] ${message}`);
+        }
     }
 
     public getPixiPath(): string | undefined {
@@ -102,6 +110,8 @@ export class PixiManager {
         const platform = process.platform;
         const arch = os.arch();
 
+        this.log(`Installing Pixi for platform: ${platform}, arch: ${arch}`);
+
         // Correct URLs check
         // User used: https://github.com/prefix-dev/pixi/releases/latest/download/pixi-x86_64-unknown-linux-musl.tar.gz
         // This seems correct for Linux.
@@ -118,6 +128,8 @@ export class PixiManager {
         } else {
             throw new Error(`Unsupported platform/arch: ${platform}/${arch}`);
         }
+
+        this.log(`Download URL: ${downloadUrl}`);
 
         const installDir = path.join(this._workspaceUri.fsPath, '.pixi', 'bin');
         await fs.promises.mkdir(installDir, { recursive: true });
@@ -144,6 +156,8 @@ export class PixiManager {
                 throw new Error(`Downloaded file is too small (${stats.size} bytes). Likely failed.`);
             }
 
+            this.log(`Extracting to: ${installDir}`);
+
             if (platform === 'win32') {
                 await execAsync(`powershell -command "Expand-Archive -Force '${destFile}' '${installDir}'"`);
             } else {
@@ -154,6 +168,8 @@ export class PixiManager {
         await fs.promises.unlink(destFile);
 
         const finalPixiPath = this.getPixiPath()!;
+        this.log(`Installed Pixi at: ${finalPixiPath}`);
+
         if (platform !== 'win32') {
             await fs.promises.chmod(finalPixiPath, 0o755);
         }
@@ -162,7 +178,11 @@ export class PixiManager {
     public async initProject(): Promise<void> {
         const pixi = this.getPixiPath();
         if (!pixi || !this._workspaceUri) return;
+
+        this.log(`Executing: "${pixi}" init`);
         await execAsync(`"${pixi}" init`, { cwd: this._workspaceUri.fsPath });
+
+        this.log(`Executing: "${pixi}" install`);
         await execAsync(`"${pixi}" install`, { cwd: this._workspaceUri.fsPath });
     }
 }
