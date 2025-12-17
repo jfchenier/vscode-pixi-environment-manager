@@ -25,12 +25,17 @@ export async function activate(context: vscode.ExtensionContext) {
         await envManager.deactivate();
     });
 
+    let clearDisposable = vscode.commands.registerCommand('pixi.clear', async () => {
+        await envManager.clearEnvironment();
+    });
+
 
 
     context.subscriptions.push(createEnvDisposable);
     context.subscriptions.push(loadOfflineEnvDisposable);
     context.subscriptions.push(activateDisposable);
     context.subscriptions.push(deactivateDisposable);
+    context.subscriptions.push(clearDisposable);
 
     // Auto-activate saved environment
     await envManager.autoActivate();

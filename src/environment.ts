@@ -20,6 +20,18 @@ export class EnvironmentManager {
             const cp = require('child_process');
             this._exec = require('util').promisify(cp.exec);
         }
+
+        // Initial Context Check
+        this.updatePixiContext();
+    }
+
+    private updatePixiContext() {
+        const workspaceUri = this.getWorkspaceFolderURI();
+        if (workspaceUri) {
+            const pixiDir = path.join(workspaceUri.fsPath, '.pixi');
+            const exists = fs.existsSync(pixiDir);
+            vscode.commands.executeCommand('setContext', 'pixi.hasPixiDirectory', exists);
+        }
     }
 
     private log(message: string) {
@@ -67,6 +79,7 @@ export class EnvironmentManager {
             // Generate helper scripts
             await this.generateActivationScripts(this.getWorkspaceFolderURI()!);
 
+            this.updatePixiContext();
 
         } catch (error: any) {
             vscode.window.showErrorMessage(`Failed to create environment: ${error.message}`);
@@ -364,6 +377,44 @@ export class EnvironmentManager {
                     vscode.commands.executeCommand("workbench.action.reloadWindow");
                 }
             }
+        }
+    }
+
+
+    public async clearEnvironment() {
+        if (!this.getWorkspaceFolderURI()) {
+            vscode.window.showErrorMessage('No workspace open.');
+            return;
+        }
+
+        const answer = await vscode.window.showWarningMessage(
+            "Are you sure you want to clear the environment? This will deactivate the current environment AND delete the '.pixi' directory.",
+            "Yes", "No"
+        );
+
+        if (answer !== 'Yes') {
+            return;
+        }
+
+        try {
+            // 1. Deactivate
+            await this.deactivate(true); // Silent deactivate
+
+            // 2. Delete .pixi directory
+            const workspacePath = this.getWorkspaceFolderURI()!.fsPath;
+            const pixiDir = path.join(workspacePath, '.pixi');
+
+            if (fs.existsSync(pixiDir)) {
+                await fs.promises.rm(pixiDir, { recursive: true, force: true });
+                vscode.window.showInformationMessage("'.pixi' directory deleted.");
+                // 3. Reload window to clear all traces
+                vscode.commands.executeCommand("workbench.action.reloadWindow");
+            } else {
+                vscode.window.showInformationMessage("'.pixi' directory does not exist.");
+            }
+
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to clear environment: ${error.message}`);
         }
     }
 

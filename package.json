@@ -18,6 +18,7 @@
     "onCommand:pixi.createEnvironment",
     "onCommand:pixi.activate",
     "onCommand:pixi.deactivate",
+    "onCommand:pixi.clear",
     "workspaceContains:pixi.toml",
     "workspaceContains:.pixi",
     "onStartupFinished"
@@ -65,8 +66,20 @@
       {
         "command": "pixi.deactivate",
         "title": "Pixi: Deactivate Environment"
+      },
+      {
+        "command": "pixi.clear",
+        "title": "Pixi: Clear Environment"
       }
-    ]
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pixi.clear",
+          "when": "pixi.hasPixiDirectory"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

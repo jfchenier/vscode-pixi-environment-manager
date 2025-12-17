@@ -28,6 +28,7 @@ The extension provides the following commands via the Command Palette (`Ctrl+Shi
 * `Pixi: Load Offline Environment` (`pixi.loadOfflineEnvironment`)
 * `Pixi: Activate Environment` (`pixi.activate`)
 * `Pixi: Deactivate Environment` (`pixi.deactivate`)
+* `Pixi: Clear Environment` (`pixi.clear`)
 
 ## Development / Build Instructions
 
