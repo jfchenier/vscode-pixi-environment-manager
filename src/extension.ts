@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { PixiManager } from './pixi';
 import { EnvironmentManager } from './environment';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     console.log('Pixi VSCode Active');
 
     const outputChannel = vscode.window.createOutputChannel("Pixi");
@@ -13,25 +13,30 @@ export function activate(context: vscode.ExtensionContext) {
         envManager.createEnvironment();
     });
 
-    let activateDisposable = vscode.commands.registerCommand('pixi.activate', async () => {
-        await envManager.activate(); // We need to fix activate signature to accept context if we use EnvVarCollection
-        // For now, we are just mocking the reload flow. 
-        // Real implementation of injecting env vars comes next.
+    let selectOfflineEnvDisposable = vscode.commands.registerCommand('pixi.selectOfflineEnvironment', async () => {
+        await envManager.selectOfflineEnvironment();
+    });
 
-        // Context: To fully implement activation (affecting terminals), we need context.environmentVariableCollection.
-        // I will update EnvironmentManager to take context.
+    let activateDisposable = vscode.commands.registerCommand('pixi.activate', async () => {
+        await envManager.activate(); 
     });
 
     let deactivateDisposable = vscode.commands.registerCommand('pixi.deactivate', async () => {
         await envManager.deactivate();
     });
 
+    let debugEnvDisposable = vscode.commands.registerCommand('pixi.debugEnv', () => {
+        envManager.debugState();
+    });
+
     context.subscriptions.push(createEnvDisposable);
+    context.subscriptions.push(selectOfflineEnvDisposable);
     context.subscriptions.push(activateDisposable);
     context.subscriptions.push(deactivateDisposable);
+    context.subscriptions.push(debugEnvDisposable);
 
     // Auto-activate saved environment
-    envManager.autoActivate();
+    await envManager.autoActivate();
 }
 
 

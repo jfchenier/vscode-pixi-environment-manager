@@ -18,7 +18,10 @@
     "onCommand:pixi.createEnvironment",
     "onCommand:pixi.activate",
     "onCommand:pixi.deactivate",
-    "workspaceContains:pixi.toml"
+    "workspaceContains:pixi.toml",
+    "workspaceContains:CMakeLists.txt",
+    "workspaceContains:.pixi",
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -29,6 +32,16 @@
           "type": "string",
           "default": "",
           "description": "Default Pixi environment to activate automatically on startup."
+        },
+        "pixi.environment": {
+          "type": "string",
+          "default": "default",
+          "description": "The environment to activate (e.g., 'default', 'test', 'cuda')."
+        },
+        "pixi.offlineEnvironmentName": {
+          "type": "string",
+          "default": "env",
+          "description": "Name of the offline environment."
         },
         "pixi.autoReload": {
           "type": "boolean",
@@ -43,12 +56,20 @@
         "title": "Pixi: Create Environment"
       },
       {
+        "command": "pixi.selectOfflineEnvironment",
+        "title": "Pixi: Select Offline Environment"
+      },
+      {
         "command": "pixi.activate",
         "title": "Pixi: Activate Environment"
       },
       {
         "command": "pixi.deactivate",
         "title": "Pixi: Deactivate Environment"
+      },
+      {
+        "command": "pixi.debugEnv",
+        "title": "Pixi: Debug Environment State"
       }
     ]
   },
