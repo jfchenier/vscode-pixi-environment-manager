@@ -13,8 +13,8 @@ export async function activate(context: vscode.ExtensionContext) {
         envManager.createEnvironment();
     });
 
-    let selectOfflineEnvDisposable = vscode.commands.registerCommand('pixi.selectOfflineEnvironment', async () => {
-        await envManager.selectOfflineEnvironment();
+    let loadOfflineEnvDisposable = vscode.commands.registerCommand('pixi.loadOfflineEnvironment', async () => {
+        await envManager.loadOfflineEnvironment();
     });
 
     let activateDisposable = vscode.commands.registerCommand('pixi.activate', async () => {
@@ -28,7 +28,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
     context.subscriptions.push(createEnvDisposable);
-    context.subscriptions.push(selectOfflineEnvDisposable);
+    context.subscriptions.push(loadOfflineEnvDisposable);
     context.subscriptions.push(activateDisposable);
     context.subscriptions.push(deactivateDisposable);
 

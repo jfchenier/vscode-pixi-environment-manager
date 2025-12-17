@@ -55,8 +55,8 @@
         "title": "Pixi: Create Environment"
       },
       {
-        "command": "pixi.selectOfflineEnvironment",
-        "title": "Pixi: Select Offline Environment"
+        "command": "pixi.loadOfflineEnvironment",
+        "title": "Pixi: Load Offline Environment"
       },
       {
         "command": "pixi.activate",

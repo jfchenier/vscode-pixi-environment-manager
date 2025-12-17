@@ -54,7 +54,7 @@ export class EnvironmentManager {
                 vscode.window.showInformationMessage("pixi.toml already exists. Running install...");
                 const pixi = this._pixiManager.getPixiPath();
                 const term = vscode.window.createTerminal("Pixi Install", process.env.SHELL, []);
-                term.show();
+                term.show(true); // Preserve focus to avoid hiding QuickPick
                 term.sendText(`"${pixi}" install`);
             } else {
                 await this._pixiManager.initProject();
@@ -485,7 +485,7 @@ set _LAST_ENV=
         }
     }
 
-    public async selectOfflineEnvironment() {
+    public async loadOfflineEnvironment() {
         if (!this.getWorkspaceFolderURI()) {
             vscode.window.showErrorMessage('No workspace open.');
             return;
@@ -558,25 +558,28 @@ set _LAST_ENV=
 
             vscode.window.showInformationMessage(`Offline environment unpacked to ${targetEnvDir}`);
 
-            // 4. Activate Automatically (No prompt)
-            await config.update('environment', envName, vscode.ConfigurationTarget.Workspace);
+            // Find env script
+            await this.activateOfflineEnvironment(targetEnvDir, envName, true);
+
+            // Update state
             await this._context.workspaceState.update(EnvironmentManager.envStateKey, envName);
-            await this.activate();
+            await this.activate(true);
 
         } catch (e: any) {
             vscode.window.showErrorMessage(`Failed to unpack/install offline environment: ${e.message}`);
         }
     }
 
-    public async activate(silent: boolean = false) {
+    public async activate(silent: boolean = false): Promise<void> {
         // Check for Offline Mode
+        const config = vscode.workspace.getConfiguration('pixi');
+        const offlineName = config.get<string>('offlineEnvironmentName', 'env');
+        const workspaceRoot = this.getWorkspaceFolderURI()?.fsPath;
+
         try {
-            const config = vscode.workspace.getConfiguration('pixi');
-            const offlineName = config.get<string>('offlineEnvironmentName', 'env');
             const savedEnv = this._context.workspaceState.get<string>(EnvironmentManager.envStateKey);
             const defaultEnv = config.get<string>('environment', 'default');
             const currentEnv = savedEnv || defaultEnv;
-            const workspaceRoot = this.getWorkspaceFolderURI()?.fsPath;
 
             // Clear any existing environment variables to ensure a clean slate
             // This prevents persistent "pollution" (e.g. TERM/TERMINFO) from previous incomplete/bad activations.
@@ -597,7 +600,9 @@ set _LAST_ENV=
             }
             // ------------------
 
-            if (currentEnv === offlineName && workspaceRoot) {
+            // Only auto-activate offline directly if running silently (startup)
+            // If manual (!silent), we want to show the picker if other envs exist.
+            if (silent && currentEnv === offlineName && workspaceRoot) {
                 const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
                 if (fs.existsSync(envDir)) {
                     this.log(`Offline env found. Activating...`);
@@ -614,8 +619,38 @@ set _LAST_ENV=
             console.error("Error in offline logic checks:", e);
         }
 
+        const offlineEnvDir = workspaceRoot ? path.join(workspaceRoot, '.pixi', 'envs', offlineName) : '';
+        const offlineAvailable = offlineEnvDir ? fs.existsSync(offlineEnvDir) : false;
+
         const installed = await this._pixiManager.isPixiInstalled();
         if (!installed) {
+            if (offlineAvailable) {
+                // Pixi missing, but offline env exists. Offer it.
+                if (!silent) {
+                    const pick = await vscode.window.showQuickPick([offlineName], {
+                        placeHolder: 'Pixi not found, but offline environment detected.'
+                    });
+                    if (pick === offlineName) {
+                        await this._context.workspaceState.update(EnvironmentManager.envStateKey, offlineName);
+                        // Trigger logic directly
+                        if (workspaceRoot) {
+                            const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
+                            await this.activateOfflineEnvironment(envDir, offlineName, silent);
+                        }
+                        return;
+                    }
+                } else {
+                    // Auto-activate offline if silent request?
+                    // Probably yes, if it's the only hope.
+                    await this._context.workspaceState.update(EnvironmentManager.envStateKey, offlineName);
+                    if (workspaceRoot) {
+                        const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
+                        await this.activateOfflineEnvironment(envDir, offlineName, silent);
+                    }
+                    return;
+                }
+            }
+
             this.log(`Pixi executable not found.`);
             // Only error if we failed offline AND missed pixi
             if (!silent) {
@@ -625,26 +660,41 @@ set _LAST_ENV=
         }
 
         const envs = await this.getEnvironments();
+        // Add offline environment to candidates if available and not already listed
+        if (offlineAvailable && !envs.includes(offlineName)) {
+            envs.push(offlineName);
+        }
+
         let selectedEnv = '';
 
-        if (envs.length > 1) {
-            if (!silent) {
-                const pick = await vscode.window.showQuickPick(envs, {
-                    placeHolder: 'Select Pixi Environment to Activate'
-                });
-                if (!pick) { return; }
-                selectedEnv = pick;
-            } else {
-                // Filter "default" logic
+        if (!silent && envs.length > 0) {
+            const pick = await vscode.window.showQuickPick(envs, {
+                placeHolder: 'Select Pixi Environment to Activate'
+            });
+            if (!pick) { return; }
+            selectedEnv = pick;
+        } else {
+            // Silent or Auto-selection Logic
+            if (envs.length > 1) {
+            // Filter "default" logic if silent
                 selectedEnv = envs[0];
-                if (selectedEnv === 'default' && envs.length > 1) selectedEnv = envs[1];
+                if (selectedEnv === 'default') selectedEnv = envs[1];
+            } else if (envs.length === 1) {
+                selectedEnv = envs[0];
             }
-        } else if (envs.length === 1) {
-            selectedEnv = envs[0];
         }
 
         if (selectedEnv) {
             await this._context.workspaceState.update(EnvironmentManager.envStateKey, selectedEnv);
+
+            // If offline selected, trigger offline logic explicitly
+            if (selectedEnv === offlineName) {
+                if (workspaceRoot) {
+                    const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
+                    await this.activateOfflineEnvironment(envDir, offlineName, silent);
+                }
+                return;
+            }
         }
 
         await this.doActivate(selectedEnv, silent);

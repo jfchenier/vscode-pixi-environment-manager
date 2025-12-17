@@ -145,21 +145,18 @@ export class PixiManager {
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: "Downloading Pixi...",
+            title: "Installing Pixi...",
             cancellable: false
         }, async (progress) => {
+            progress.report({ message: "Downloading..." });
             await downloadFile(downloadUrl, destFile);
-        });
 
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: "Extracting Pixi...",
-        }, async () => {
+            progress.report({ message: "Extracting..." });
+
             // Validate file before extracting?
             // Simple size check?
             const stats = await fs.promises.stat(destFile);
             if (stats.size < 1000) {
-                // Likely an error page or empty
                 throw new Error(`Downloaded file is too small (${stats.size} bytes). Likely failed.`);
             }
 

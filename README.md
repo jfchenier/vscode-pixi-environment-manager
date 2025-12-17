@@ -25,6 +25,7 @@ This extension contributes the following settings:
 The extension provides the following commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
 * `Pixi: Create Environment` (`pixi.createEnvironment`)
+* `Pixi: Load Offline Environment` (`pixi.loadOfflineEnvironment`)
 * `Pixi: Activate Environment` (`pixi.activate`)
 * `Pixi: Deactivate Environment` (`pixi.deactivate`)
 
