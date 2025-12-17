@@ -77,6 +77,14 @@
         {
           "command": "pixi.clear",
           "when": "pixi.hasPixiDirectory"
+        },
+        {
+          "command": "pixi.deactivate",
+          "when": "pixi.isEnvironmentActive"
+        },
+        {
+          "command": "pixi.activate",
+          "when": "pixi.hasPixiDirectory"
         }
       ]
     }

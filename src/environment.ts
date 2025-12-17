@@ -29,8 +29,13 @@ export class EnvironmentManager {
         const workspaceUri = this.getWorkspaceFolderURI();
         if (workspaceUri) {
             const pixiDir = path.join(workspaceUri.fsPath, '.pixi');
-            const exists = fs.existsSync(pixiDir);
-            vscode.commands.executeCommand('setContext', 'pixi.hasPixiDirectory', exists);
+            const tomlPath = path.join(workspaceUri.fsPath, 'pixi.toml');
+
+            const hasPixiDir = fs.existsSync(pixiDir);
+            const hasToml = fs.existsSync(tomlPath);
+
+            vscode.commands.executeCommand('setContext', 'pixi.hasPixiDirectory', hasPixiDir);
+            vscode.commands.executeCommand('setContext', 'pixi.hasProjectManifest', hasToml);
         }
     }
 
@@ -150,6 +155,11 @@ export class EnvironmentManager {
                     this._outputChannel?.appendLine(`Configured default environment '${defaultEnv}' not found. options: ${envs.join(', ')}`);
                 }
             }
+        }
+
+        // Just in case no environment is saved/found, ensure context is false
+        if (!savedEnv) {
+            vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', false);
         }
 
         if (savedEnv) {
@@ -286,6 +296,7 @@ export class EnvironmentManager {
             } else {
                 console.log('Pixi environment activated silently.');
             }
+            vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', true);
 
         } catch (e: any) {
             if (!silent) {
@@ -378,6 +389,7 @@ export class EnvironmentManager {
                 }
             }
         }
+        vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', false);
     }
 
 
@@ -895,6 +907,7 @@ set _LAST_ENV=
             } else {
                 console.log(`Offline environment '${envName}' activated silently.`);
             }
+            vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', true);
 
         } catch (e: any) {
             if (!silent) {
