@@ -818,7 +818,8 @@ set _LAST_ENV=
                 // Pixi missing, but offline env exists. Offer it.
                 if (!silent) {
                     const pick = await vscode.window.showQuickPick([offlineName], {
-                        placeHolder: 'Pixi not found, but offline environment detected.'
+                        placeHolder: 'Pixi not found, but offline environment detected.',
+                        title: 'Select Environment'
                     });
                     if (pick === offlineName) {
                         await this._context.workspaceState.update(EnvironmentManager.envStateKey, offlineName);

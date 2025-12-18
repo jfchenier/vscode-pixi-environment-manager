@@ -4,108 +4,43 @@ Pixi integration for VS Code. This extension allows you to manage environments u
 
 ## Features
 
-- **Create Environment**: Initialize a new Pixi environment.
-- **Activate Environment**: Activate a Pixi environment within VS Code.
-- **Deactivate Environment**: Deactivate the current Pixi environment.
-- **Auto-Environment Detection**: Detects and uses environments defined in `pixi.toml`.
-
-## Requirements
-
-- **Pixi**: You must have [Pixi](https://pixi.sh/) installed and available in your system PATH.
+- **Create Environment**: Initialize a new Pixi environment. If a `pixi.toml` exists, it runs `pixi install`. If not, it runs `pixi init`. The environment is automatically activated upon completion.
+- **Activate Environment**: Activate an existing Pixi environment within VS Code. The extension parses `pixi shell-hook` output to inject environment variables directly into the VS Code terminal session, ensuring all tools are available.
+- **Deactivate Environment**: Deactivate the current Pixi environment, clearing the injected environment variables and restoring the session to its base state.
+- **Offline Environments**: Generate a portable, offline-capable environment package. This creates a tarball and an installer script, allowing deployment on air-gapped systems or machines without a global Pixi installation.
+- **Auto-Detection**: The extension automatically detects `pixi.toml` in the workspace root and enables relevant commands.
 
 ## Extension Settings
 
 This extension contributes the following settings:
 
-* `pixi.defaultEnvironment`: Specifies the default Pixi environment to activate automatically on startup.
-* `pixi.autoReload`: Automatically reload the VS Code window after activating or deactivating an environment (default: `false`).
+* `pixi.defaultEnvironment`: Specifies the default Pixi environment to automatically activate on startup if no previous environment state is found.
+* `pixi.environment`: The fallback environment name to use during activation if no specific environment is selected (default: `default`).
+* `pixi.offlineEnvironmentName`: The name given to the directory when unpacking an offline environment (e.g., `.pixi/envs/<name>`). Default is `env`.
+* `pixi.autoReload`: If set to `true`, the VS Code window will automatically reload after an environment is activated or deactivated. This ensures that extensions and terminals fully embrace the new environment variables. Default is `false`.
 
 ## Commands
 
 The extension provides the following commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
-* `Pixi: Create Environment` (`pixi.createEnvironment`)
-* `Pixi: Generate Offline Environment` (`pixi.generateOffline`)
-* `Pixi: Load Offline Environment` (`pixi.loadOfflineEnvironment`)
-* `Pixi: Activate Environment` (`pixi.activate`)
-* `Pixi: Deactivate Environment` (`pixi.deactivate`)
-* `Pixi: Clear Environment` (`pixi.clear`)
+* **Pixi: Create Environment** (`pixi.createEnvironment`)
+  Initializes a new Pixi project in the current workspace. If a `pixi.toml` already exists, it installs dependencies.
 
-## Development / Build Instructions
+* **Pixi: Activate Environment** (`pixi.activate`)
+  Manually activates the Pixi environment. It prompts you to select an environment (if multiple are defined) and injects the variables.
 
-If you want to contribute to the extension or build it from source, follow these steps:
+* **Pixi: Deactivate Environment** (`pixi.deactivate`)
+  Removes Pixi environment variables from the current VS Code session.
 
-### Prerequisites
+* **Pixi: Clear Environment** (`pixi.clear`)
+  Completely resets the environment state by **deleting the `.pixi` folder** and reloading the window. This is useful for performing a clean re-initialization.
 
-* [Node.js](https://nodejs.org/) (version 18 or higher recommended)
-* [npm](https://www.npmjs.com/) (usually comes with Node.js)
-* [Pixi](https://pixi.sh/) (to test the extension's functionality)
+* **Pixi: Generate Offline Environment** (`pixi.generateOffline`)
+  Creates a standalone offline environment. It uses `pixi-pack` to compress the environment and generates a platform-agnostic installer script (`install.sh`/`install.bat`).
 
-### Cloning the Repository
+* **Pixi: Load Offline Environment** (`pixi.loadOfflineEnvironment`)
+  Prompts for an installer script (from a generated offline environment), unpacks it into the project, and activates it. This allows working in an isolated environment without external dependencies.
 
-```bash
-git clone https://github.com/jfchenier/jfchenier-SPARK-Pixi-vscode-extension.git
-cd jfchenier-SPARK-Pixi-vscode-extension
-```
+## Documentation
 
-### Building the Project
-
-1.  **Install Dependencies**:
-
-    ```bash
-    npm install
-    ```
-
-2.  **Compile the Extension**:
-
-    To compile the TypeScript source code to JavaScript:
-
-    ```bash
-    npm run compile
-    ```
-
-    For continuous compilation during development (watch mode):
-
-    ```bash
-    npm run watch
-    ```
-
-### Running and Debugging
-
-1.  Open the project in **VS Code**.
-2.  Press **F5** to start debugging. This will open a new "Extension Development Host" window with the extension loaded.
-3.  In the new window, you can run the Pixi commands to test the functionality.
-
-### Linting
-
-To run the linter:
-
-```bash
-npm run lint
-```
-
-### Testing
-
-To run the tests:
-
-```bash
-npm run test
-```
-
-### Packaging
-
-To create a VSIX package for manual installation:
-
-1.  Install `vsce` (VS Code Extension Manager) globally if you haven't already:
-
-    ```bash
-    npm install -g @vscode/vsce
-    ```
-
-2.  Package the extension:
-
-    ```bash
-    vsce package
-    ```
-
-    This will generate a `.vsix` file in the project directory, which can be installed in VS Code via "Install from VSIX...".
+For development instructions, please refer to [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).

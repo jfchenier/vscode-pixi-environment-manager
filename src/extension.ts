@@ -3,7 +3,6 @@ import { PixiManager } from './pixi';
 import { EnvironmentManager } from './environment';
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('Pixi VSCode Active');
 
     const outputChannel = vscode.window.createOutputChannel("Pixi");
     const pixiManager = new PixiManager(outputChannel);

@@ -7,21 +7,17 @@
     "type": "git",
     "url": "https://github.com/jfchenier/jfchenier-SPARK-Pixi-vscode-extension.git"
   },
-  "version": "0.0.1",
+  "license": "MIT",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:pixi.createEnvironment",
-    "onCommand:pixi.activate",
-    "onCommand:pixi.deactivate",
-    "onCommand:pixi.clear",
+    "activationEvents": [
     "workspaceContains:pixi.toml",
-    "workspaceContains:.pixi",
-    "onStartupFinished"
+    "workspaceContains:.pixi"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -31,49 +27,55 @@
         "pixi.defaultEnvironment": {
           "type": "string",
           "default": "",
-          "description": "Default Pixi environment to activate automatically on startup."
+          "description": "Specifies the default Pixi environment to automatically activate on startup if no previous environment state is found."
         },
         "pixi.environment": {
           "type": "string",
           "default": "default",
-          "description": "The environment to activate (e.g., 'default', 'test', 'cuda')."
+          "description": "The fallback environment name to use during activation if no specific environment is selected."
         },
         "pixi.offlineEnvironmentName": {
           "type": "string",
           "default": "env",
-          "description": "Name of the offline environment."
+          "description": "The name given to the directory when unpacking an offline environment (e.g., `.pixi/envs/<name>`)."
         },
         "pixi.autoReload": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically reload the window after activating or deactivating an environment."
+          "description": "If set to true, the VS Code window will automatically reload after an environment is activated or deactivated."
         }
       }
     },
     "commands": [
       {
         "command": "pixi.createEnvironment",
-        "title": "Pixi: Create Environment"
+        "title": "Create Environment",
+        "category": "Pixi"
       },
       {
         "command": "pixi.generateOffline",
-        "title": "Pixi: Generate Offline Environment"
+        "title": "Generate Offline Environment",
+        "category": "Pixi"
       },
       {
         "command": "pixi.loadOfflineEnvironment",
-        "title": "Pixi: Load Offline Environment"
+        "title": "Load Offline Environment",
+        "category": "Pixi"
       },
       {
         "command": "pixi.activate",
-        "title": "Pixi: Activate Environment"
+        "title": "Activate Environment",
+        "category": "Pixi"
       },
       {
         "command": "pixi.deactivate",
-        "title": "Pixi: Deactivate Environment"
+        "title": "Deactivate Environment",
+        "category": "Pixi"
       },
       {
         "command": "pixi.clear",
-        "title": "Pixi: Clear Environment"
+        "title": "Clear Environment",
+        "category": "Pixi"
       }
     ],
     "menus": {
