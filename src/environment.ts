@@ -36,6 +36,10 @@ export class EnvironmentManager {
 
             vscode.commands.executeCommand('setContext', 'pixi.hasPixiDirectory', hasPixiDir);
             vscode.commands.executeCommand('setContext', 'pixi.hasProjectManifest', hasToml);
+
+            this._pixiManager.isPixiInstalled().then(isInstalled => {
+                vscode.commands.executeCommand('setContext', 'pixi.isPixiInstalled', isInstalled);
+            });
         }
     }
 
@@ -393,6 +397,112 @@ export class EnvironmentManager {
     }
 
 
+    public async generateOfflineEnvironment() {
+        if (!this.getWorkspaceFolderURI()) {
+            vscode.window.showErrorMessage('No workspace open.');
+            return;
+        }
+
+        const workspaceRoot = this.getWorkspaceFolderURI()!.fsPath;
+        const pixiPath = this._pixiManager.getPixiPath();
+
+        if (!pixiPath) {
+            vscode.window.showErrorMessage('Pixi executable not found.');
+            return;
+        }
+
+        try {
+            // 1. Install pixi-pack in default environment
+            // Check if installed first? `pixi list`? Or just run add (it's idempotent usually)
+            // But `add` might modify pixi.toml.
+            // User explicit request: "That install pixi-pack in the default environment"
+            this.log('Ensuring pixi-pack is installed in default environment...');
+            await this.runInstallInTerminal(pixiPath, this.getWorkspaceFolderURI()!, undefined); // Ensure env is built
+
+            // We need to add it: `pixi add pixi-pack`
+            // But we should probably check if it's already there to avoid unnecessary edits/re-locks.
+            // Let's just run it. If it's already there, it's fast.
+            // Wait, running `pixi add` creates a lockfile update.
+            // If I just run `pixi add pixi-pack`, it adds it to `default` dependencies.
+
+            // To be safe and show progress:
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Installing pixi-pack...",
+                cancellable: false
+            }, async () => {
+                await this._exec(`"${pixiPath}" add pixi-pack`, { cwd: workspaceRoot });
+            });
+
+
+            // 2. Select Environment
+            const envs = await this.getEnvironments();
+            if (envs.length === 0) {
+                vscode.window.showErrorMessage('No environments found to pack.');
+                return;
+            }
+
+            const selectedEnv = await vscode.window.showQuickPick(envs, {
+                placeHolder: 'Select Environment to Pack'
+            });
+
+            if (!selectedEnv) return;
+
+            // 3. Select Platform
+            const platforms = await this.getProjectPlatforms(workspaceRoot);
+            if (platforms.length === 0) {
+                // Fallback or error? pixi.toml must have platforms usually.
+                // If not, maybe use current?
+                const currentPlatform = process.platform === 'win32' ? 'win-64' : (process.platform === 'darwin' ? 'osx-64' : 'linux-64'); // Simplified
+                platforms.push(currentPlatform);
+            }
+
+            const selectedPlatform = await vscode.window.showQuickPick(platforms, {
+                placeHolder: 'Select Target Platform'
+            });
+
+            if (!selectedPlatform) return;
+
+            // 4. Execute Generation Command
+            // "pixi exec pixi-pack --environment <env name> --platform <platform> pixi.toml --create-executable"
+            // Note: `pixi-pack` needs to be run via `pixi exec` if it was installed in the environment.
+            // `pixi exec` runs in the *default* environment context by default, or we might need `-e default` if we added it there.
+            // Usually `pixi add` adds to `default` feature/env.
+
+            const terminal = vscode.window.createTerminal("Pixi Pack");
+            terminal.show();
+            // We use `pixi exec` which picks up the binary from the env
+            const cmd = `"${pixiPath}" exec pixi-pack --environment ${selectedEnv} --platform ${selectedPlatform} pixi.toml --create-executable`;
+            terminal.sendText(cmd);
+
+        } catch (e: any) {
+            vscode.window.showErrorMessage(`Failed to generate offline environment: ${e.message}`);
+        }
+    }
+
+    private async getProjectPlatforms(workspaceRoot: string): Promise<string[]> {
+        try {
+            const tomlPath = path.join(workspaceRoot, 'pixi.toml');
+            if (fs.existsSync(tomlPath)) {
+                const content = await fs.promises.readFile(tomlPath, 'utf8');
+                // Simple regex to find platforms = ["..."] or platforms = [...]
+                // Supports spanning multiple lines? TOML arrays can.
+                // Let's try to match `platforms` key.
+                const match = content.match(/platforms\s*=\s*\[(.*?)\]/s); // s flag for dotAll
+                if (match && match[1]) {
+                    // Extract strings
+                    const inner = match[1];
+                    // Split by comma
+                    const parts = inner.split(',');
+                    return parts.map(p => p.trim().replace(/['"]/g, '')).filter(p => p.length > 0);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to parse platforms", e);
+        }
+        return [];
+    }
+
     public async clearEnvironment() {
         if (!this.getWorkspaceFolderURI()) {
             vscode.window.showErrorMessage('No workspace open.');
@@ -627,6 +737,23 @@ set _LAST_ENV=
             // Update state
             await this._context.workspaceState.update(EnvironmentManager.envStateKey, envName);
             await this.activate(true);
+
+            // Check auto-reload config
+            const autoReload = vscode.workspace.getConfiguration('pixi').get<boolean>('autoReload');
+
+            if (autoReload) {
+                vscode.window.showInformationMessage("Offline environment loaded. Reloading window...");
+                vscode.commands.executeCommand("workbench.action.reloadWindow");
+            } else {
+                // Ask to reload window
+                const selection = await vscode.window.showInformationMessage(
+                    "Offline environment loaded. Reload window to apply changes?",
+                    "Reload"
+                );
+                if (selection === "Reload") {
+                    vscode.commands.executeCommand("workbench.action.reloadWindow");
+                }
+            }
 
         } catch (e: any) {
             vscode.window.showErrorMessage(`Failed to unpack/install offline environment: ${e.message}`);

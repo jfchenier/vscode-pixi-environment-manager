@@ -56,6 +56,10 @@
         "title": "Pixi: Create Environment"
       },
       {
+        "command": "pixi.generateOffline",
+        "title": "Pixi: Generate Offline Environment"
+      },
+      {
         "command": "pixi.loadOfflineEnvironment",
         "title": "Pixi: Load Offline Environment"
       },
@@ -81,6 +85,10 @@
         {
           "command": "pixi.deactivate",
           "when": "pixi.isEnvironmentActive"
+        },
+        {
+          "command": "pixi.generateOffline",
+          "when": "pixi.hasProjectManifest && pixi.isPixiInstalled"
         },
         {
           "command": "pixi.activate",
