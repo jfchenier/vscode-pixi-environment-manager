@@ -387,39 +387,43 @@ export class EnvironmentManager {
 
     private async runInstallInTerminal(pixiPath: string, workspaceUri: vscode.Uri, envName?: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            const terminal = vscode.window.createTerminal({
-                name: `Pixi Install${envName ? ` (${envName})` : ''}`,
-                cwd: workspaceUri.fsPath,
-                env: process.env, // Inherit env
-                shellPath: process.platform === 'win32' ? 'powershell.exe' : undefined
-            });
+            const taskDefinition = {
+                type: 'pixi',
+                task: 'install'
+            };
 
-            terminal.show();
+            const command = `"${pixiPath}" install --color always${envName ? ` -e ${envName}` : ''}`;
 
-            const platform = process.platform;
-            let cmd = platform === 'win32' ? '& ' : '';
-            cmd += `"${pixiPath}" install --color always${envName ? ` -e ${envName}` : ''}`;
+            const task = new vscode.Task(
+                taskDefinition,
+                vscode.workspace.getWorkspaceFolder(workspaceUri) || vscode.TaskScope.Workspace,
+                `Install${envName ? ` (${envName})` : ''}`,
+                'pixi',
+                new vscode.ShellExecution(command),
+                []
+            );
 
-            if (platform === 'win32') {
-                // We enforced PowerShell above, so we can safely use '; exit'
-                cmd += ` ; exit`;
-            } else {
-                cmd += ` ; exit $?`;
-            }
+            task.presentationOptions = {
+                reveal: vscode.TaskRevealKind.Always,
+                panel: vscode.TaskPanelKind.Dedicated,
+                clear: true,
+                close: false // Keep terminal open
+            };
 
-            terminal.sendText(cmd);
-
-            const disposable = vscode.window.onDidCloseTerminal((t) => {
-                if (t === terminal) {
-                    disposable.dispose();
-                    if (t.exitStatus && t.exitStatus.code === 0) {
-                        resolve();
-                    } else {
-                        // If code is undefined, it might have been closed by user manually
-                        const code = t.exitStatus ? t.exitStatus.code : 'unknown';
-                        reject(new Error(`Pixi install terminal closed with code ${code}`));
+            // Execute the task
+            vscode.tasks.executeTask(task).then(execution => {
+                const disposable = vscode.tasks.onDidEndTaskProcess(e => {
+                    if (e.execution === execution) {
+                        disposable.dispose();
+                        if (e.exitCode === 0) {
+                            resolve();
+                        } else {
+                            reject(new Error(`Pixi install failed with exit code ${e.exitCode}`));
+                        }
                     }
-                }
+                });
+            }, error => {
+                reject(new Error(`Failed to start task: ${error}`));
             });
         });
     }
