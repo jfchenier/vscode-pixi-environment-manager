@@ -9,7 +9,7 @@
     "url": "https://github.com/jfchenier/jfchenier-SPARK-Pixi-vscode-extension.git"
   },
   "license": "MIT",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "engines": {
     "vscode": "^1.90.0"
   },

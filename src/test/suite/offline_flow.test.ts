@@ -16,6 +16,7 @@ suite('Offline Flow Test Suite', () => {
     let mockConfig: { [key: string]: any } = {};
 
     let lastTaskExecution: any;
+    let capturedTasks: any[] = [];
 
     // Mock VS Code
     const vscodeMock = {
@@ -61,20 +62,21 @@ suite('Offline Flow Test Suite', () => {
             },
             showOpenDialog: () => Promise.resolve(showOpenDialogResult),
             onDidCloseTerminal: (listener: (t: any) => void) => {
-                // Simulate immediate closure of any created terminal
-                const t = createdTerminals[createdTerminals.length - 1]; // Most recent
-                if (t) {
-                    setTimeout(() => listener(t), 10);
-                }
                 return { dispose: () => { } };
             }
         },
-        ShellExecution: class { constructor(cmd: string) { } },
-        Task: class { constructor(def: any, scope: any, name: string, source: string, exec: any) { } },
+        ShellExecution: class {
+            constructor(public commandLine: string, public options?: any) { }
+        },
+        Task: class {
+            constructor(public definition: any, public scope: any, public name: string, public source: string, public execution: any) {
+                capturedTasks.push(this);
+            }
+        },
         TaskScope: { Workspace: 1 },
         tasks: {
-            executeTask: () => {
-                const execution = {}; // Stable identity
+            executeTask: (task: any) => {
+                const execution = { task }; // Stable identity
                 lastTaskExecution = execution;
                 return Promise.resolve(execution);
             },
@@ -108,6 +110,7 @@ suite('Offline Flow Test Suite', () => {
             },
             rm: () => Promise.resolve(),
             mkdir: () => Promise.resolve(),
+            writeFile: () => Promise.resolve()
         },
         mkdirSync: () => { },
         rmSync: () => { }
@@ -127,6 +130,7 @@ suite('Offline Flow Test Suite', () => {
 
     setup(() => {
         terminalSentText = [];
+        capturedTasks = [];
         execCommands = [];
         showQuickPickResults = [];
         showOpenDialogResult = undefined;
@@ -158,29 +162,25 @@ suite('Offline Flow Test Suite', () => {
 
         // Verification
 
-        // 1. Check if pixi-pack install was attempted
+        // 1. Check if pixi-pack install was attempted (via Task or Exec?)
+        // The code runs runInstallInTerminal (Task) then execs `pixi add pixi-pack` (Exec or Task?)
+        // Code says: this._exec(`"${pixiPath}" add pixi-pack`)
         const installCmd = execCommands.find(c => c.includes('add pixi-pack'));
-        assert.ok(installCmd, 'Should attempt to install pixi-pack');
+        assert.ok(installCmd, 'Should attempt to install pixi-pack via exec');
 
-        // 2. Check if terminal command was sent for generation
-        // Expected: 
-        // 1. Install command
-        // 2. Generate command
-        assert.ok(terminalSentText.length >= 2, 'Should send at least 2 commands (install + pack)');
+        // 2. Check if Tasks were created for install and pack
+        // Expected Tasks:
+        // 1. Install (runInstallInTerminal called before packing)
+        // 2. Pack
+        assert.ok(capturedTasks.length >= 2, 'Should create at least 2 tasks (install + pack)');
 
-        const genCmd = terminalSentText[terminalSentText.length - 1];
-        assert.ok(genCmd.includes('pixi-pack'), 'Last terminal command should use pixi-pack');
-        assert.ok(genCmd.includes('--environment prod'), 'Should use selected environment');
-        assert.ok(genCmd.includes('--platform linux-64'), 'Should use selected platform');
+        const packTask = capturedTasks.find(t => t.name.includes('Pack prod'));
+        assert.ok(packTask, 'Should create a Pack task');
 
-        if (process.platform === 'win32') {
-            // Verify PowerShell syntax for both install and pack commands
-            const installTermCmd = terminalSentText.find(c => c.includes('install'));
-            const packTermCmd = terminalSentText.find(c => c.includes('pixi-pack'));
-
-            assert.ok(installTermCmd && installTermCmd.trim().startsWith('& '), 'Install command should start with & on Windows');
-            assert.ok(packTermCmd && packTermCmd.trim().startsWith('& '), 'Pack command should start with & on Windows');
-        }
+        const cmdLine = packTask.execution.commandLine;
+        assert.ok(cmdLine.includes('pixi-pack'), 'Task command should use pixi-pack');
+        assert.ok(cmdLine.includes('--environment prod'), 'Should use selected environment');
+        assert.ok(cmdLine.includes('--platform linux-64'), 'Should use selected platform');
     });
 
     test('Load Offline Environment: Unpacks and Activating', async () => {
@@ -210,14 +210,16 @@ suite('Offline Flow Test Suite', () => {
 
         // Verification
 
-        // 1. Check unpacking command
-        const unpackCmd = execCommands.find(c => c.includes('bash') && c.includes('env-installer.sh'));
-        assert.ok(unpackCmd, 'Should execute the selected script to unpack');
-        assert.ok(unpackCmd?.includes('--output-directory'), 'Should specify output directory');
+        // 1. Check unpacking task
+        const unpackTask = capturedTasks.find(t => t.name.includes('Unpack'));
+        assert.ok(unpackTask, 'Should create an Unpack task');
+
+        const cmdLine = unpackTask.execution.commandLine;
+        assert.ok(cmdLine.includes('env-installer.sh'), 'Task should execute the selected script');
+        assert.ok(cmdLine.includes('--output-directory'), 'Should specify output directory');
 
         // 2. Check activation was triggered (implicit by check of activateOfflineEnvironment logic? 
         // We mocked _exec, so activateOfflineEnvironment will call it to "diff" the env.
-        // It runs "source <script> ... printenv"
         const activateCmd = execCommands.find(c => c.includes('printenv') && c.includes('activate.sh'));
         assert.ok(activateCmd, 'Should attempt to activate and capture environment after unpacking');
 
