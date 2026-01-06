@@ -213,9 +213,9 @@ export class EnvironmentManager {
         }
 
         try {
-            const platform = process.platform;
-            const shellArg = platform === 'win32' ? 'powershell' : 'bash';
-            const cmd = `"${pixiPath}" shell-hook --shell ${shellArg}${envName ? ` -e "${envName}"` : ''}`;
+            // Use --json to get the resolved environment variables directly
+            // This handles activation scripts that might source other files or run commands
+            const cmd = `"${pixiPath}" shell-hook --json${envName ? ` -e "${envName}"` : ''}`;
 
             this.log(`Activating environment: ${envName || 'default'} with command: ${cmd}`);
 
@@ -223,7 +223,7 @@ export class EnvironmentManager {
             const location = silent ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification;
             const title = "Activating Pixi Environment (syncing)...";
 
-            const { stdout } = await vscode.window.withProgress({
+            const { stdout, stderr } = await vscode.window.withProgress({
                 location,
                 title,
                 cancellable: false
@@ -233,98 +233,50 @@ export class EnvironmentManager {
                 });
             });
 
-            this.log(`Command output:\n${stdout}`);
+            // Log stderr (where script output usually goes) to output channel
+            if (stderr && stderr.trim().length > 0) {
+                this.log(`Activation Script Output:\n${stderr}`);
+                // Also show to user if not silent? Maybe too noisy. 
+                // Pixi usually prints activation info to stderr.
+            }
 
-            // Parse exports (bash) or PowerShell assignments
-            const lines = stdout.split('\n');
-            const envUpdates = new Map<string, { value: string, op: 'replace' | 'prepend' | 'append' }>();
+            this.log(`Command output (json):\n${stdout}`);
 
-            for (const line of lines) {
-                const trimmed = line.trim();
-
-                if (trimmed.startsWith('export ')) {
-                    const firstEquals = trimmed.indexOf('=');
-                    if (firstEquals === -1) continue;
-
-                    const key = trimmed.substring(7, firstEquals);
-                    let value = trimmed.substring(firstEquals + 1);
-
-                    // Unquote
-                    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-                        value = value.substring(1, value.length - 1);
-                    }
-
-                    envUpdates.set(key, { value, op: 'replace' });
-                } else if (trimmed.startsWith('${Env:')) {
-                    // PowerShell: ${Env:KEY} = "VAL" [ + $Env:KEY ]
-                    // We just grab the whole right side first.
-                    // The regex captures everything after assignment, excluding leading whitespace
-                    const match = trimmed.match(/^\${Env:([^}]+)}\s*=\s*(.*)$/);
-                    if (match) {
-                        const key = match[1];
-                        let rhs = match[2];
-                        let op: 'replace' | 'prepend' | 'append' = 'replace';
-                        let value = rhs;
-
-                        // Check for Prepend: "VAL" + $Env:KEY
-                        const prependSuffix = `+ $Env:${key}`;
-                        if (value.endsWith(prependSuffix)) {
-                            op = 'prepend';
-                            value = value.substring(0, value.length - prependSuffix.length).trim();
-                        } else {
-                            // Check for Append: $Env:KEY + "VAL"
-                            const appendPrefix = `$Env:${key} +`;
-                            if (value.startsWith(appendPrefix)) {
-                                op = 'append';
-                                value = value.substring(appendPrefix.length).trim();
-                            }
-                        }
-
-                        // Strip outer quotes if still present
-                        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-                            value = value.substring(1, value.length - 1);
-                        }
-
-                        envUpdates.set(key, { value, op });
-                    }
+            let envVars: { [key: string]: string } = {};
+            try {
+                const parsed = JSON.parse(stdout);
+                if (parsed.environment_variables) {
+                    envVars = parsed.environment_variables;
                 }
+            } catch (e: any) {
+                this.log(`Failed to parse shell-hook JSON: ${e}`);
+                throw new Error(`Failed to parse Pixi output: ${e.message}`);
             }
 
             // Apply to VSCode environment (terminals)
             const collection = this._context.environmentVariableCollection;
+            const envUpdates = new Map<string, { value: string, op: 'replace' | 'prepend' | 'append' }>();
+
+            for (const key in envVars) {
+                const value = envVars[key];
+                // JSON output gives the *final* value. We use 'replace' to set the state exactly as Pixi intended.
+                envUpdates.set(key, { value, op: 'replace' });
+            }
 
             for (const [key, update] of envUpdates) {
                 let { value, op } = update;
-
+                // op is always 'replace' now with JSON strategy
+                
+                // We still ensure local pixi bin is in PATH just in case, though it should be in JSON.
                 if (key === 'PATH' && pixiPath) {
                     const pixiBinDir = path.dirname(pixiPath);
                     if (!value.includes(pixiBinDir)) {
-                        // Always prepend local pixi bin to PATH if missing
-                        if (op === 'replace') {
-                            value = `${pixiBinDir}${path.delimiter}${value}`;
-                        } else {
-                            // If prepending, simpler to just add it to value
-                            if (op === 'prepend') {
-                                value = `${pixiBinDir}${path.delimiter}${value}`;
-                            } else {
-                                // op is append, prepend separately.
-                                this._context.environmentVariableCollection.prepend(key, pixiBinDir + path.delimiter);
-                            }
-                        }
+                         value = `${pixiBinDir}${path.delimiter}${value}`;
                     }
                 }
 
-                if (op === 'replace') {
-                    this._context.environmentVariableCollection.replace(key, value);
-                    process.env[key] = value;
-                } else if (op === 'prepend') {
-                    this._context.environmentVariableCollection.prepend(key, value);
-                    // Best effort process.env update
-                    process.env[key] = value + (process.env[key] || '');
-                } else { // append
-                    this._context.environmentVariableCollection.append(key, value);
-                    process.env[key] = (process.env[key] || '') + value;
-                }
+                this._context.environmentVariableCollection.replace(key, value);
+                process.env[key] = value;
             }
 
 
@@ -345,6 +297,16 @@ export class EnvironmentManager {
                     if (selection === "Reload") {
                         vscode.commands.executeCommand("workbench.action.reloadWindow");
                     }
+                }
+                // Inject activation output into terminal startup (Bash/Zsh)
+                if (stderr && stderr.trim().length > 0 && process.platform !== 'win32') {
+                     const msg = stderr.trim().replace(/'/g, "'\\''"); // Escape single quotes
+                     // We use PROMPT_COMMAND to run once then self-destruct mechanism (sort of).
+                     // Actually simplest is: print if var set, then unset var.
+                     this._context.environmentVariableCollection.replace('PIXI_ACTIVATION_MSG', msg);
+                     // Prepend ensures it runs before other prompts (or use append?)
+                     // PROMPT_COMMAND is bash.
+                     this._context.environmentVariableCollection.prepend('PROMPT_COMMAND', `if [ -n "$PIXI_ACTIVATION_MSG" ]; then echo "$PIXI_ACTIVATION_MSG"; unset PIXI_ACTIVATION_MSG; fi; `);
                 }
             } else {
                 console.log('Pixi environment activated silently.');
@@ -391,14 +353,44 @@ export class EnvironmentManager {
                 task: 'install'
             };
 
-            const command = `"${pixiPath}" install${envName ? ` -e "${envName}"` : ''}`;
+            const installCmd = `"${pixiPath}" install${envName ? ` -e "${envName}"` : ''}`;
+            
+            // To satisfy user request to see activation script output (echoes) in the terminal:
+            // We chain `pixi shell-hook` after install.
+            // We redirect stdout to /dev/null (Linux/Mac) or NUL (Windows) to suppress the huge JSON/Export dump,
+            // leaving only stderr (where echo usually goes or where Pixi logs info).
+            let shellHookCmd = '';
+            // We use a simple echo for the "Executing..." message.
+            // Note: We avoid `this.log` as explicitly requested by USER.
+
+            const msg = `Executing Pixi Task: ${installCmd}`;
+            let fullCommand = '';
+
+            if (process.platform === 'win32') {
+                // Windows (CMD vs PowerShell is ambiguous in ShellExecution without explicit executable)
+                // We'll try to keep it simple. If we can't reliably chain output suppression, 
+                // we might skip the shell-hook viz or try a generic approach.
+                // Assuming Powershell is common default:
+                // cmd; shell-hook | Out-Null
+                // But users might use CMD.
+                // Let's focus on the `echo` requirement primarily if shell-hook is too risky on Windows.
+                // But specifically for Linux (User's OS), we can do it standard.
+                fullCommand = `echo '${msg}' ; ${installCmd}`; 
+            } else {
+                // Linux/Mac: standard bash-like syntax
+                // IMPORTANT: We must EVAL the output of shell-hook to actually RUN the activation scripts (e.g. source activate.sh)
+                // which produces the output ('echo') the user wants to see. 
+                // Redirecting to /dev/null just discarded the script without running it.
+                shellHookCmd = ` && eval "$("${pixiPath}" shell-hook${envName ? ` -e "${envName}"` : ''})"`;
+                fullCommand = `echo '${msg}' && ${installCmd}${shellHookCmd}`;
+            }
 
             const task = new vscode.Task(
                 taskDefinition,
                 vscode.workspace.getWorkspaceFolder(workspaceUri) || vscode.TaskScope.Workspace,
                 `Install${envName ? ` (${envName})` : ''}`,
                 'pixi',
-                new vscode.ShellExecution(command),
+                new vscode.ShellExecution(fullCommand),
                 []
             );
 

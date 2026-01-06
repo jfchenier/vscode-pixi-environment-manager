@@ -37,6 +37,17 @@ suite('Environment Manager Test Suite', () => {
                     stderr: ''
                 };
             }
+            if (cmd.includes('shell-hook')) {
+                return {
+                    stdout: JSON.stringify({
+                        environment_variables: {
+                            PATH: "/pixi/env/bin:/usr/bin",
+                            CONDA_PREFIX: "/pixi/env"
+                        }
+                    }),
+                    stderr: ''
+                };
+            }
             return {
                 stdout: 'export PATH="/pixi/env/bin:/usr/bin"\nexport CONDA_PREFIX="/pixi/env"',
                 stderr: ''
@@ -113,7 +124,12 @@ suite('Environment Manager Test Suite', () => {
 
         const mockExec = async (cmd: string, opts: any) => {
             return {
-                stdout: 'export PATH="/pixi/env/spark/bin:/usr/bin"\nexport CONDA_PREFIX="/pixi/env/spark"',
+                stdout: JSON.stringify({
+                    environment_variables: {
+                        PATH: "/pixi/env/spark/bin:/usr/bin",
+                        CONDA_PREFIX: "/pixi/env/spark"
+                    }
+                }),
                 stderr: ''
             };
         };

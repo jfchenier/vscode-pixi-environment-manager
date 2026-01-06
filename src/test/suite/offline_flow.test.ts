@@ -141,6 +141,9 @@ suite('Offline Flow Test Suite', () => {
             if (cmd.indexOf('info') !== -1) {
                 return { stdout: JSON.stringify({ environments_info: [{ name: 'default' }, { name: 'prod' }] }), stderr: '' };
             }
+            if (cmd.indexOf('shell-hook') !== -1) {
+                return { stdout: JSON.stringify({ environment_variables: { FOO: "BAR" } }), stderr: '' };
+            }
             return { stdout: '', stderr: '' };
         };
 
@@ -186,6 +189,9 @@ suite('Offline Flow Test Suite', () => {
             if (cmd.indexOf('info') !== -1) {
                 return { stdout: JSON.stringify({ environments_info: [{ name: 'default' }, { name: 'prod' }] }), stderr: '' };
             }
+            if (cmd.indexOf('shell-hook') !== -1) {
+                return { stdout: JSON.stringify({ environment_variables: { FOO: "BAR" } }), stderr: '' };
+            }
             return { stdout: 'export FOO=BAR', stderr: '' }; // Mock unpacking or activation output
         };
 
@@ -226,6 +232,9 @@ suite('Offline Flow Test Suite', () => {
         const mockExec = async (cmd: string) => {
             if (cmd.indexOf('info') !== -1) {
                 return { stdout: JSON.stringify({ environments_info: [{ name: 'default' }, { name: 'prod' }] }), stderr: '' };
+            }
+            if (cmd.indexOf('shell-hook') !== -1) {
+                return { stdout: JSON.stringify({ environment_variables: { FOO: "BAR" } }), stderr: '' };
             }
             return { stdout: 'export FOO=BAR', stderr: '' };
         };

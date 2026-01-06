@@ -8,11 +8,11 @@ import { PixiManager } from '../../pixi';
 
 // Mock exec
 const mockExec = async (cmd: string, opts: any) => {
-    console.log(`[MockExec] Cmd: ${cmd}`);
     if (cmd.indexOf('info') !== -1) {
-        const ret = { stdout: JSON.stringify({ environments_info: [{ name: 'default' }, { name: 'test' }] }), stderr: '' };
-        console.log(`[MockExec] Returning: ${ret.stdout}`);
-        return ret;
+        return { stdout: JSON.stringify({ environments_info: [{ name: 'default' }, { name: 'test' }] }), stderr: '' };
+    }
+    if (cmd.indexOf('shell-hook') !== -1) {
+        return { stdout: JSON.stringify({ environment_variables: { FOO: "BAR" } }), stderr: '' };
     }
     return { stdout: '', stderr: '' };
 };

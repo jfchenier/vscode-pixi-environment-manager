@@ -108,7 +108,10 @@ suite('Command Visibility Context Test Suite', () => {
         recordedCommands = [];
 
         // We mock _exec to succeed
-        envManager._exec = async () => ({ stdout: 'export FOO=BAR', stderr: '' });
+        envManager._exec = async () => ({
+            stdout: JSON.stringify({ environment_variables: { FOO: 'BAR' } }),
+            stderr: ''
+        });
         
         // Mock getEnvironments to return something so activate() works
         envManager.getEnvironments = async () => ['default'];
