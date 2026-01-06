@@ -1,7 +1,7 @@
 {
   "name": "pixi-vscode-env",
   "displayName": "Pixi Environment Manager",
-  "description": "Comprehensive Pixi environment management for VS Code. Automatically downloads Pixi, manages environment activation (full window context), and handles offline environment packing.",
+  "description": "Manages and injects the Pixi environment into the full VS Code window context.",
   "icon": "assets/pixi-logo.png",
   "publisher": "jfchenier",
   "repository": {
@@ -9,7 +9,7 @@
     "url": "https://github.com/jfchenier/jfchenier-SPARK-Pixi-vscode-extension.git"
   },
   "license": "MIT",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "engines": {
     "vscode": "^1.90.0"
   },
