@@ -385,12 +385,38 @@ export class EnvironmentManager {
                 fullCommand = `echo '${msg}' && ${installCmd}${shellHookCmd}`;
             }
 
+            // We must explicitly specify the shell executable to avoid using the user's "Default Profile".
+            // If the user's default profile (settings.json) launches an interactive shell (e.g. `banner.sh; zsh`),
+            // the task command might hang waiting for that interactive shell to exit or loop infinitely.
+            // By specifying executable, we bypass the profile args.
+            const shellExecutionOptions: vscode.ShellExecutionOptions = {
+                cwd: workspaceUri.fsPath
+            };
+
+            // Use process.env.SHELL if available (User preference), otherwise fallback to safe defaults.
+            if (process.env.SHELL) {
+                shellExecutionOptions.executable = process.env.SHELL;
+                // Most unix shells (bash, zsh, sh) use -c.
+                // PowerShell on Linux uses -Command.
+                if (process.env.SHELL.endsWith('pwsh') || process.env.SHELL.endsWith('powershell')) {
+                    shellExecutionOptions.shellArgs = ['-Command'];
+                } else {
+                    shellExecutionOptions.shellArgs = ['-c'];
+                }
+            } else if (process.platform !== 'win32') {
+                shellExecutionOptions.executable = '/bin/bash';
+                shellExecutionOptions.shellArgs = ['-c'];
+            } else {
+                shellExecutionOptions.executable = 'powershell.exe';
+                shellExecutionOptions.shellArgs = ['-Command'];
+            }
+
             const task = new vscode.Task(
                 taskDefinition,
                 vscode.workspace.getWorkspaceFolder(workspaceUri) || vscode.TaskScope.Workspace,
                 `Install${envName ? ` (${envName})` : ''}`,
                 'pixi',
-                new vscode.ShellExecution(fullCommand),
+                new vscode.ShellExecution(fullCommand, shellExecutionOptions),
                 []
             );
 
