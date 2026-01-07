@@ -1026,7 +1026,10 @@ if exist "%SCRIPT_DIR%activate.bat" (
 
             if (platform === 'win32') {
                 if (scriptPath.endsWith('.ps1')) {
-                    cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "& '${scriptPath}' --env-name '${envName}' --output-directory '${envsDir}'"`;
+                    const scriptPathSafe = scriptPath.replace(/'/g, "''");
+                    const envNameSafe = envName.replace(/'/g, "''");
+                    const envsDirSafe = envsDir.replace(/'/g, "''");
+                    cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command { & '${scriptPathSafe}' --env-name '${envNameSafe}' --output-directory '${envsDirSafe}' }`;
                 } else if (scriptPath.endsWith('.sh')) {
                     const scriptPathPosix = scriptPath.split(path.sep).join(path.posix.sep);
                     const envsDirPosix = envsDir.split(path.sep).join(path.posix.sep);
@@ -1042,41 +1045,49 @@ if exist "%SCRIPT_DIR%activate.bat" (
             // Run via Task
             const shellExecutionOptions = this.getSafeShellExecutionOptions(workspaceRoot);
 
-            await new Promise<void>((resolve, reject) => {
-                const taskDefinition = {
-                    type: 'pixi',
-                    task: 'unpack'
-                };
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Unpacking offline environment...",
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ message: "This may take some time." });
 
-                const task = new vscode.Task(
-                    taskDefinition,
-                    vscode.workspace.getWorkspaceFolder(vscode.Uri.file(workspaceRoot)) || vscode.TaskScope.Workspace,
-                    `Unpack ${envName}`,
-                    'pixi',
-                    new vscode.ShellExecution(cmd, shellExecutionOptions),
-                    []
-                );
+                await new Promise<void>((resolve, reject) => {
+                    const taskDefinition = {
+                        type: 'pixi',
+                        task: 'unpack'
+                    };
 
-                task.presentationOptions = {
-                    reveal: vscode.TaskRevealKind.Always,
-                    panel: vscode.TaskPanelKind.Dedicated,
-                    clear: true,
-                    close: false
-                };
+                    const task = new vscode.Task(
+                        taskDefinition,
+                        vscode.workspace.getWorkspaceFolder(vscode.Uri.file(workspaceRoot)) || vscode.TaskScope.Workspace,
+                        `Unpack ${envName}`,
+                        'pixi',
+                        new vscode.ShellExecution(cmd, shellExecutionOptions),
+                        []
+                    );
 
-                vscode.tasks.executeTask(task).then(execution => {
-                    const disposable = vscode.tasks.onDidEndTaskProcess(e => {
-                        if (e.execution === execution) {
-                            disposable.dispose();
-                            if (e.exitCode === 0) {
-                                resolve();
-                            } else {
-                                reject(new Error(`Unpack failed with exit code ${e.exitCode}`));
+                    task.presentationOptions = {
+                        reveal: vscode.TaskRevealKind.Always,
+                        panel: vscode.TaskPanelKind.Dedicated,
+                        clear: true,
+                        close: false
+                    };
+
+                    vscode.tasks.executeTask(task).then(execution => {
+                        const disposable = vscode.tasks.onDidEndTaskProcess(e => {
+                            if (e.execution === execution) {
+                                disposable.dispose();
+                                if (e.exitCode === 0) {
+                                    resolve();
+                                } else {
+                                    reject(new Error(`Unpack failed with exit code ${e.exitCode}`));
+                                }
                             }
-                        }
+                        });
+                    }, error => {
+                        reject(new Error(`Failed to start unpack task: ${error}`));
                     });
-                }, error => {
-                    reject(new Error(`Failed to start unpack task: ${error}`));
                 });
             });
 

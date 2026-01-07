@@ -38,7 +38,7 @@
         "pixi.offlineEnvironmentName": {
           "type": "string",
           "default": "env",
-          "description": "The name given to the directory when unpacking an offline environment (e.g., `.pixi/envs/<name>`)."
+          "description": "The name given to the directory when unpacking an offline environment."
         },
         "pixi.autoReload": {
           "type": "boolean",
