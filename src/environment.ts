@@ -9,6 +9,7 @@ export class EnvironmentManager {
     private _exec: (command: string, options?: any) => Promise<{ stdout: string, stderr: string }>;
     private _outputChannel: vscode.OutputChannel | undefined;
     private _terminalListener: vscode.Disposable | undefined;
+    private _statusBarItem: vscode.StatusBarItem;
     private static readonly envStateKey = 'pixiSelectedEnvironment';
 
     constructor(pixiManager: PixiManager, context: vscode.ExtensionContext, outputChannel?: vscode.OutputChannel, exec?: (command: string, options?: any) => Promise<{ stdout: string, stderr: string }>) {
@@ -22,8 +23,17 @@ export class EnvironmentManager {
             this._exec = require('util').promisify(cp.exec);
         }
 
+        // Initialize Status Bar Item
+        this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        this._statusBarItem.command = 'pixi.activate'; // Click to switch/activate
+        this._context.subscriptions.push(this._statusBarItem);
+
         // Initial Context Check
         this.updatePixiContext();
+
+        // Show initial status
+        const savedEnv = this._context.workspaceState.get<string>(EnvironmentManager.envStateKey);
+        this.updateStatusBar(savedEnv);
     }
 
     private updatePixiContext() {
@@ -48,6 +58,17 @@ export class EnvironmentManager {
         if (this._outputChannel) {
             this._outputChannel.appendLine(message);
         }
+    }
+
+    private updateStatusBar(envName?: string) {
+        if (envName) {
+            this._statusBarItem.text = `$(terminal) ${envName}`;
+            this._statusBarItem.tooltip = `Pixi Environment: ${envName}`;
+        } else {
+            this._statusBarItem.text = `$(terminal) Pixi`;
+            this._statusBarItem.tooltip = `Click to Activate or Create Pixi Environment`;
+        }
+        this._statusBarItem.show();
     }
 
 
@@ -442,6 +463,7 @@ export class EnvironmentManager {
             this._terminalListener = undefined;
         }
         vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', false);
+        this.updateStatusBar(undefined);
     }
 
 
@@ -1389,11 +1411,13 @@ if exist "%SCRIPT_DIR%activate.bat" (
                     }
                 }
             } else {
-                console.log(`Offline environment '${envName}' activated silently.`);
+                console.log('Pixi environment activated silently.');
             }
             vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', true);
+            this.updateStatusBar(envName || 'default');
 
         } catch (e: any) {
+            this.updateStatusBar(envName);
             if (!silent) {
                 vscode.window.showErrorMessage(`Failed to activate offline environment: ${e.message}`);
             }
