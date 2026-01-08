@@ -8,7 +8,6 @@ A comprehensive VS Code extension for managing [Pixi](https://pixi.sh) environme
 *   **Full Window Context**: Injects environment variables (like `PATH`, `CONDA_PREFIX`, and custom variables) into the **entire VS Code window context**. This means terminals, other extensions, and tasks all inherit the activated environment automatically.
 *   **Offline Support**: Unique capability to generate and load "offline" environment packs (`.tar.gz` + `.pixi`), enabling reproducible development in air-gapped or restricted networks.
 
-
 ## 🚀 Why this extension?
 
 While there is an official Pixi extension, **Pixi Environment Manager** focuses on a different set of needs:
@@ -58,10 +57,18 @@ npm run compile
 ### Run
 Press `F5` in VS Code to launch the extension development host.
 
+## ⚖️ Legal & Attribution
+
+**Disclaimer**:
+This extension is **not** affiliated with, endorsed by, or associated with **prefix.dev** or the **Pixi** project. It is an independent open-source tool designed to help developers use Pixi within VS Code.
+
+**Third-Party Software**:
+This extension downloads and uses the **Pixi** executable to manage environments.
+Pixi is Copyright (c) prefix.dev GmbH and is licensed under the BSD 3-Clause License.
+See `THIRD_PARTY_NOTICES.md` in the extension installation directory for full license text.
+
 ## 👏 Credits
 
-*   **Inspiration**: Heavily inspired by the [vscode-micromamba](https://github.com/mamba-org/vscode-micromamba) extension.
-*   **Pixi**: Built upon the incredible [Pixi](https://pixi.sh) package manager by [prefix.dev](https://prefix.dev).
+*   Heavily inspired by the [vscode-micromamba](https://github.com/mamba-org/vscode-micromamba) extension.
+*   Powered by [Pixi](https://pixi.sh) package manager by [prefix.dev](https://prefix.dev).
 
----
-**Enjoy a cleaner, more powerful development environment with Pixi!**
