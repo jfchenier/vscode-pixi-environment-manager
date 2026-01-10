@@ -4,14 +4,14 @@ import * as path from 'path';
 import * as os from 'os';
 import * as https from 'https';
 import * as http from 'http';
-import { URL } from 'url';
+
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
 export async function downloadFile(url: string, dest: string, retries: number = 3): Promise<void> {
-    const uri = new URL(url);
+
     const pkg = url.startsWith('https') ? https : http;
 
     return new Promise((resolve, reject) => {
@@ -293,7 +293,7 @@ export class PixiManager {
 
     public async initProject(): Promise<void> {
         const pixi = this.getPixiPath();
-        if (!pixi || !this._workspaceUri) return;
+        if (!pixi || !this._workspaceUri) { return; }
 
         this.log(`Executing: "${pixi}" init`);
         await execAsync(`"${pixi}" init`, { cwd: this._workspaceUri.fsPath });
@@ -308,7 +308,7 @@ export class PixiManager {
         }
 
         const pixiPath = this.getPixiPath();
-        if (!pixiPath) return;
+        if (!pixiPath) { return; }
 
         try {
             // Run dry-run to check for updates

@@ -1,8 +1,8 @@
 
 import * as assert from 'assert';
-import * as path from 'path';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
+
 const proxyquire = require('proxyquire').noCallThru();
 
 suite('Offline Flow Test Suite', () => {
@@ -28,8 +28,8 @@ suite('Offline Flow Test Suite', () => {
             getWorkspaceFolder: (uri: any) => ({ uri: { fsPath: '/mock/workspace' }, index: 0, name: 'Workspace' }),
             getConfiguration: () => ({
                 get: (key: string, def?: any) => {
-                    if (key in mockConfig) return mockConfig[key];
-                    if (key === 'offlineEnvironmentName') return 'env';
+                    if (key in mockConfig) { return mockConfig[key]; }
+                    if (key === 'offlineEnvironmentName') { return 'env'; }
                     return def;
                 },
                 update: () => Promise.resolve()
@@ -106,9 +106,9 @@ suite('Offline Flow Test Suite', () => {
     // Mock FS
     const fsMock = {
         existsSync: (p: string) => {
-            if (p.includes('pixi.toml')) return true;
-            if (p.endsWith('activate.sh')) return true; // Mock activation script existence
-            if (p.includes('.pixi/envs')) return true;
+            if (p.includes('pixi.toml')) { return true; }
+            if (p.endsWith('activate.sh')) { return true; } // Mock activation script existence
+            if (p.includes('.pixi/envs')) { return true; }
             return false;
         },
         promises: {

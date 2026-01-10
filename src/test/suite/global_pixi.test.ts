@@ -1,6 +1,6 @@
 
 import * as assert from 'assert';
-// eslint-disable-next-line @typescript-eslint/naming-convention
+ 
 const proxyquire = require('proxyquire').noCallThru();
 
 suite('Global Pixi Support Test Suite', () => {
@@ -30,7 +30,7 @@ suite('Global Pixi Support Test Suite', () => {
             showInformationMessage: async (msg: string, ...items: string[]) => {
                 showMessageCalls.push(msg);
                 // Simulate user selecting "Yes" if msg contains "global"
-                if (msg.includes('global installation')) return 'Yes' as any;
+                if (msg.includes('global installation')) {return 'Yes' as any;}
                 return undefined;
             },
             createOutputChannel: () => ({ appendLine: () => { } }) as any,
@@ -195,7 +195,7 @@ suite('Global Pixi Support Test Suite', () => {
         // Mock window to capture second prompt
         const originalShowInfo = vscodeMock.window.showInformationMessage;
         vscodeMock.window.showInformationMessage = async (msg: string, ...items: string[]) => {
-            if (msg.includes('global installation')) return 'Yes';
+            if (msg.includes('global installation')) {return 'Yes';}
             if (msg.includes('Reload window')) {
                 reloadPromptShown = true;
                 return 'Reload';

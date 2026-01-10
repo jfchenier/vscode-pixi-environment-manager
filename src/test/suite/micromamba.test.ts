@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+ 
 const proxyquire = require('proxyquire').noCallThru();
 
 suite('Micromamba Conflict Test Suite', () => {
@@ -18,7 +18,7 @@ suite('Micromamba Conflict Test Suite', () => {
             getWorkspaceFolder: (uri: any) => ({ uri: { fsPath: '/mock/workspace' }, index: 0, name: 'Workspace' }),
             getConfiguration: () => ({
                 get: (key: string, def?: any) => {
-                    if (key in mockConfig) return mockConfig[key];
+                    if (key in mockConfig) {return mockConfig[key];}
                     return def;
                 },
                 update: () => Promise.resolve()
