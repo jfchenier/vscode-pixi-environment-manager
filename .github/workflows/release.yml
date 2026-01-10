@@ -77,5 +77,6 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: *.vsix
+          files: |
+            *.vsix
           generate_release_notes: true
