@@ -9,7 +9,7 @@
     "url": "https://github.com/jfchenier/vscode-pixi-environment-manager.git"
   },
   "license": "MIT",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "engines": {
     "vscode": "^1.90.0"
   },

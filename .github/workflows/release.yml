@@ -28,13 +28,13 @@ jobs:
         run: xvfb-run -a npm test
 
       - name: Package extension
-        run: npx vsce package --out ./extension.vsix
+        run: npx vsce package
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: extension-vsix
-          path: ./extension.vsix
+          path: ./*.vsix
 
   publish:
     needs: build
@@ -55,10 +55,10 @@ jobs:
           name: extension-vsix
 
       - name: Publish to VS Code Marketplace
-        run: npx vsce publish --packagePath extension.vsix -p ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --packagePath *.vsix -p ${{ secrets.VSCE_PAT }}
 
       - name: Publish to Open VSX Registry
-        run: npx ovsx publish extension.vsix -p ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
 
   release:
     needs: build
@@ -77,5 +77,5 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: extension.vsix
+          files: *.vsix
           generate_release_notes: true
