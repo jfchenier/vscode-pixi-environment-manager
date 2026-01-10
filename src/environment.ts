@@ -279,7 +279,7 @@ export class EnvironmentManager {
             }
 
             // Apply to VSCode environment (terminals)
-            const collection = this._context.environmentVariableCollection;
+            // const collection = this._context.environmentVariableCollection;
             const envUpdates = new Map<string, { value: string, op: 'replace' | 'prepend' | 'append' }>();
 
             for (const key in envVars) {
@@ -289,7 +289,7 @@ export class EnvironmentManager {
             }
 
             for (const [key, update] of envUpdates) {
-                let { value, op } = update;
+                let { value } = update;
                 // op is always 'replace' now with JSON strategy
 
                 // We still ensure local pixi bin is in PATH just in case, though it should be in JSON.
@@ -520,7 +520,7 @@ export class EnvironmentManager {
                 placeHolder: 'Select Environment to Pack'
             });
 
-            if (!selectedEnv) return;
+            if (!selectedEnv) { return; }
 
             // 3. Select Platform
             const platforms = await this.getProjectPlatforms(workspaceRoot);
@@ -535,7 +535,7 @@ export class EnvironmentManager {
                 placeHolder: 'Select Target Platform'
             });
 
-            if (!selectedPlatform) return;
+            if (!selectedPlatform) { return; }
 
             // 4. Execute Generation Command
             // Use vscode.Task for consistent terminal behavior
@@ -657,7 +657,7 @@ export class EnvironmentManager {
     }
 
     public async generateActivationScripts(workspaceUri: vscode.Uri) {
-        const platform = process.platform;
+        // const platform = process.platform;
 
         // Generate activate.sh for bash/zsh (Linux/macOS)
         // We always generate the sh script as it might be useful even on Windows (WSL/Git Bash)
@@ -1197,7 +1197,7 @@ if exist "%SCRIPT_DIR%activate.bat" (
                 if (cached && cached.envName === offlineName && cached.envVars) {
                     this.log(`Found cached environment for '${offlineName}'. Applying instantaneously.`);
                     for (const key in cached.envVars) {
-                        if (key === 'TERM' || key === 'TERMINFO' || key === 'TERMINFO_DIRS') continue; // Skip terminal vars
+                        if (key === 'TERM' || key === 'TERMINFO' || key === 'TERMINFO_DIRS') { continue; } // Skip terminal vars
                         const value = cached.envVars[key];
                         process.env[key] = value;
                         this._context.environmentVariableCollection.replace(key, value);
@@ -1247,7 +1247,7 @@ if exist "%SCRIPT_DIR%activate.bat" (
                         if (workspaceRoot) {
                             const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
                             const handled = await this.activateOfflineEnvironment(envDir, offlineName, silent);
-                            if (handled) return;
+                            if (handled) { return; }
                         }
                         // Fallback if not handled (shouldn't happen if user picked it from "offline detected", but safe)
                         if (!silent) {
@@ -1262,7 +1262,7 @@ if exist "%SCRIPT_DIR%activate.bat" (
                     if (workspaceRoot) {
                         const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
                         const handled = await this.activateOfflineEnvironment(envDir, offlineName, silent);
-                        if (handled) return;
+                        if (handled) { return; }
                     }
                     // If not handled, fall through to return
                 }
@@ -1317,7 +1317,7 @@ if exist "%SCRIPT_DIR%activate.bat" (
                 if (workspaceRoot) {
                     const envDir = path.join(workspaceRoot, '.pixi', 'envs', offlineName);
                     const handled = await this.activateOfflineEnvironment(envDir, offlineName, silent);
-                    if (handled) return;
+                    if (handled) { return; }
                 }
                 // If not handled (return false), it means script missing.
                 // Fall through to doActivate to try standard activation for this name.
@@ -1406,7 +1406,7 @@ if exist "%SCRIPT_DIR%activate.bat" (
                     if (idx > 0) {
                         const key = line.substring(0, idx).trim();
                         const value = line.substring(idx + 1).trim();
-                        if (key) map.set(key, value);
+                        if (key) { map.set(key, value); }
                     }
                 }
                 return map;
@@ -1421,7 +1421,7 @@ if exist "%SCRIPT_DIR%activate.bat" (
                 // If new or changed
                 if (value !== beforeValue) {
                     // Exclude irrelevant vars that might change naturally or break terminal
-                    if (key === '_' || key === 'SHLVL' || key === 'PWD' || key === 'OLDPWD' || key === 'TERM' || key === 'TERMINFO' || key === 'TERMINFO_DIRS') continue;
+                    if (key === '_' || key === 'SHLVL' || key === 'PWD' || key === 'OLDPWD' || key === 'TERM' || key === 'TERMINFO' || key === 'TERMINFO_DIRS') { continue; }
                     envUpdates.set(key, value);
                 }
             }

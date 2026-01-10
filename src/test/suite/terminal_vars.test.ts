@@ -53,7 +53,7 @@ suite('Terminal Variables Test Suite', () => {
                             }
                         };
                     }
-                    if (key === 'pixiSelectedEnvironment') return 'env';
+                    if (key === 'pixiSelectedEnvironment') {return 'env';}
                     return undefined;
                 },
                 update: () => Promise.resolve()

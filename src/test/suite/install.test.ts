@@ -131,7 +131,7 @@ suite('Install Task Integration Test Suite', () => {
 
             clearInterval(checkInterval);
 
-        } catch (e) {
+        } catch {
         }
 
         terminalDisposable.dispose();
