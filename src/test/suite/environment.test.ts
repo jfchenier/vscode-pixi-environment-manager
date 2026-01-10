@@ -87,7 +87,7 @@ suite('Environment Manager Test Suite', () => {
             },
             workspaceState: {
                 get: (key: string) => {
-                    if (key === 'pixiSelectedEnvironment') return storedEnv;
+                    if (key === 'pixiSelectedEnvironment') {return storedEnv;}
                     return undefined;
                 },
                 update: (key: string, value: string) => {
@@ -198,7 +198,7 @@ suite('Environment Manager Test Suite', () => {
             workspaceState: {
                 get: () => storedEnv,
                 update: (key: string, value: any) => {
-                    if (key === 'pixiSelectedEnvironment') storedEnv = value;
+                    if (key === 'pixiSelectedEnvironment') {storedEnv = value;}
                     return Promise.resolve();
                 }
             },

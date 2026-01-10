@@ -1,9 +1,9 @@
 
 import * as assert from 'assert';
 // import { EnvironmentManager } from '../../environment'; // We will load via proxyquire
-import * as path from 'path';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
+
 const proxyquire = require('proxyquire').noCallThru();
 
 suite('Command Visibility Context Test Suite', () => {
@@ -58,9 +58,9 @@ suite('Command Visibility Context Test Suite', () => {
         existsSync: (p: string) => {
             // Check if any key in mockFs is a suffix of p (to handle absolute paths)
             // or identical
-            if (mockFs[p]) return true;
+            if (mockFs[p]) { return true; }
             for (const key in mockFs) {
-                if (p.endsWith(key) && mockFs[key]) return true;
+                if (p.endsWith(key) && mockFs[key]) { return true; }
             }
             return false;
         },
@@ -88,7 +88,7 @@ suite('Command Visibility Context Test Suite', () => {
     });
 
     test('Initial Context: No .pixi folder -> pixi.hasPixiDirectory = false', () => {
-        const envManager = new EnvironmentManager(new MockPixiManager(), { subscriptions: [], workspaceState: { get: () => undefined, update: () => Promise.resolve() } }, undefined);
+        new EnvironmentManager(new MockPixiManager(), { subscriptions: [], workspaceState: { get: () => undefined, update: () => Promise.resolve() } }, undefined);
 
         const setContextCall = recordedCommands.find(c => c.key === 'pixi.hasPixiDirectory');
         assert.ok(setContextCall, 'Should update pixi.hasPixiDirectory context');
@@ -97,7 +97,7 @@ suite('Command Visibility Context Test Suite', () => {
 
     test('Initial Context: With .pixi folder -> pixi.hasPixiDirectory = true', () => {
         mockFs['.pixi'] = true; // /mock/workspace/.pixi
-        const envManager = new EnvironmentManager(new MockPixiManager(), {
+        new EnvironmentManager(new MockPixiManager(), {
             subscriptions: [],
             workspaceState: { get: () => undefined, update: () => Promise.resolve() }
         }, undefined);
