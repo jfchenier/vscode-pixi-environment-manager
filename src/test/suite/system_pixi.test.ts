@@ -1,9 +1,9 @@
 
 import * as assert from 'assert';
- 
+
 const proxyquire = require('proxyquire').noCallThru();
 
-suite('Global Pixi Support Test Suite', () => {
+suite('System Pixi Support Test Suite', () => {
 
     let mockConfig: { [key: string]: any } = {};
     let mockGlobalState: { [key: string]: any } = {};
@@ -29,8 +29,8 @@ suite('Global Pixi Support Test Suite', () => {
         window: {
             showInformationMessage: async (msg: string, ...items: string[]) => {
                 showMessageCalls.push(msg);
-                // Simulate user selecting "Yes" if msg contains "global"
-                if (msg.includes('global installation')) {return 'Yes' as any;}
+                // Simulate user selecting "Yes" if msg contains "system"
+                if (msg.includes('system installation')) { return 'Yes' as any; }
                 return undefined;
             },
             createOutputChannel: () => ({ appendLine: () => { } }) as any,
@@ -45,7 +45,7 @@ suite('Global Pixi Support Test Suite', () => {
 
     const fsMock = {
         promises: {
-            access: () => Promise.resolve(), // Local always exists in this mock unless checking global logic
+            access: () => Promise.resolve(), // Bundled always exists in this mock unless checking system logic
         },
         constants: { X_OK: 1 }
     };
@@ -77,7 +77,7 @@ suite('Global Pixi Support Test Suite', () => {
         stateUpdates = [];
     });
 
-    test('getPixiPath returns local path by default', () => {
+    test('getPixiPath returns bundled path by default', () => {
         const pm = new PixiManager();
         const p = pm.getPixiPath();
         assert.ok(p?.includes('.pixi'), 'Should contain .pixi by default');
@@ -86,8 +86,8 @@ suite('Global Pixi Support Test Suite', () => {
         assert.ok(p?.startsWith('/') || p?.match(/^[a-zA-Z]:/), 'Should be absolute path');
     });
 
-    test('getPixiPath returns global name if configured', () => {
-        mockConfig['useGlobalPixi'] = true;
+    test('getPixiPath returns system name if configured', () => {
+        mockConfig['useSystemPixi'] = true;
         const pm = new PixiManager();
         const path = pm.getPixiPath();
         if (process.platform === 'win32') {
@@ -97,7 +97,7 @@ suite('Global Pixi Support Test Suite', () => {
         }
     });
 
-    test('checkAndPromptGlobalPixi prompts if global exists and not ignored', async () => {
+    test('checkAndPromptSystemPixi prompts if system exists and not ignored', async () => {
         const pm = new PixiManager();
         const contextMock = {
             globalState: {
@@ -110,23 +110,23 @@ suite('Global Pixi Support Test Suite', () => {
             }
         };
 
-        await pm.checkAndPromptGlobalPixi(contextMock);
+        await pm.checkAndPromptSystemPixi(contextMock);
 
         // Check if exec called for version
         const versionCheck = execCalls.some(c => c.includes('--version'));
-        assert.ok(versionCheck, 'Should check global version');
+        assert.ok(versionCheck, 'Should check system version');
 
         // Check if prompt shown
-        const promptShown = showMessageCalls.some(s => s.includes('global installation'));
+        const promptShown = showMessageCalls.some(s => s.includes('system installation'));
         assert.ok(promptShown, 'Should show prompt');
 
         // Check if config updated (mock returns Yes)
-        const updated = configUpdates.find(u => u.key === 'useGlobalPixi');
+        const updated = configUpdates.find(u => u.key === 'useSystemPixi');
         assert.strictEqual(updated?.value, true, 'Should update config to true');
     });
 
-    test('checkAndPromptGlobalPixi DOES NOT prompt if ignored', async () => {
-        mockGlobalState['pixi.ignoreGlobalPixi'] = true;
+    test('checkAndPromptSystemPixi DOES NOT prompt if ignored', async () => {
+        mockGlobalState['pixi.ignoreSystemPixi'] = true;
         const pm = new PixiManager();
         const contextMock = {
             globalState: {
@@ -135,14 +135,14 @@ suite('Global Pixi Support Test Suite', () => {
             }
         };
 
-        await pm.checkAndPromptGlobalPixi(contextMock);
+        await pm.checkAndPromptSystemPixi(contextMock);
 
-        const promptShown = showMessageCalls.some(s => s.includes('global installation'));
+        const promptShown = showMessageCalls.some(s => s.includes('system installation'));
         assert.ok(!promptShown, 'Should NOT show prompt if ignored');
     });
 
-    test('checkAndPromptGlobalPixi DOES NOT prompt if already enabled', async () => {
-        mockConfig['useGlobalPixi'] = true;
+    test('checkAndPromptSystemPixi DOES NOT prompt if already enabled', async () => {
+        mockConfig['useSystemPixi'] = true;
         const pm = new PixiManager();
         const contextMock = {
             globalState: {
@@ -151,13 +151,13 @@ suite('Global Pixi Support Test Suite', () => {
             }
         };
 
-        await pm.checkAndPromptGlobalPixi(contextMock);
+        await pm.checkAndPromptSystemPixi(contextMock);
 
-        const promptShown = showMessageCalls.some(s => s.includes('global installation'));
+        const promptShown = showMessageCalls.some(s => s.includes('system installation'));
         assert.ok(!promptShown, 'Should NOT show prompt if already enabled');
     });
 
-    test('checkAndPromptGlobalPixi triggers auto-reload if configured', async () => {
+    test('checkAndPromptSystemPixi triggers auto-reload if configured', async () => {
         mockConfig['autoReload'] = true;
 
         const pm = new PixiManager();
@@ -180,12 +180,12 @@ suite('Global Pixi Support Test Suite', () => {
             }
         };
 
-        await pm.checkAndPromptGlobalPixi(contextMock);
+        await pm.checkAndPromptSystemPixi(contextMock);
 
         assert.ok(reloadCommandCalled, 'Should verify auto-reload triggered');
     });
 
-    test('checkAndPromptGlobalPixi asks for reload if auto-reload disabled', async () => {
+    test('checkAndPromptSystemPixi asks for reload if auto-reload disabled', async () => {
         mockConfig['autoReload'] = false;
 
         const pm = new PixiManager();
@@ -195,7 +195,7 @@ suite('Global Pixi Support Test Suite', () => {
         // Mock window to capture second prompt
         const originalShowInfo = vscodeMock.window.showInformationMessage;
         vscodeMock.window.showInformationMessage = async (msg: string, ...items: string[]) => {
-            if (msg.includes('global installation')) {return 'Yes';}
+            if (msg.includes('system installation')) { return 'Yes'; }
             if (msg.includes('Reload window')) {
                 reloadPromptShown = true;
                 return 'Reload';
@@ -219,7 +219,7 @@ suite('Global Pixi Support Test Suite', () => {
             }
         };
 
-        await pm.checkAndPromptGlobalPixi(contextMock);
+        await pm.checkAndPromptSystemPixi(contextMock);
 
         assert.ok(reloadPromptShown, 'Should show reload prompt');
         assert.ok(reloadCommandCalled, 'Should reload after confirmation');

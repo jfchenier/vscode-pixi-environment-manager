@@ -67,7 +67,7 @@ export class PixiManager {
     private _workspaceUri: vscode.Uri | undefined;
     private _pixiName: string;
     private _outputChannel: vscode.OutputChannel | undefined;
-    private _globalCheckPromise: Promise<void> | undefined;
+    private _systemCheckPromise: Promise<void> | undefined;
 
     constructor(outputChannel?: vscode.OutputChannel) {
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -85,9 +85,9 @@ export class PixiManager {
 
     public getPixiPath(): string | undefined {
         const config = vscode.workspace.getConfiguration('pixi');
-        const useGlobal = config.get<boolean>('useGlobalPixi', false);
+        const useSystem = config.get<boolean>('useSystemPixi', false);
 
-        if (useGlobal) {
+        if (useSystem) {
             // Return 'pixi' to rely on system PATH, or resolve it?
             // "pixi" is simpler but might fail if PATH isn't propagated to VSCode perfectly.
             // But 'pixi' usually works in terminal.
@@ -110,7 +110,7 @@ export class PixiManager {
             return false;
         }
 
-        // If global, check simple execution
+        // If system, check simple execution
         if (pixiPath === this._pixiName) {
             try {
                 // Check if 'pixi --version' works
@@ -129,67 +129,67 @@ export class PixiManager {
         }
     }
 
-    public async checkAndPromptGlobalPixi(context: vscode.ExtensionContext): Promise<void> {
-        if (this._globalCheckPromise) {
-            return this._globalCheckPromise;
+    public async checkAndPromptSystemPixi(context: vscode.ExtensionContext): Promise<void> {
+        if (this._systemCheckPromise) {
+            return this._systemCheckPromise;
         }
 
-        this._globalCheckPromise = (async () => {
+        this._systemCheckPromise = (async () => {
             const config = vscode.workspace.getConfiguration('pixi');
-            const useGlobal = config.get<boolean>('useGlobalPixi', false);
+            const useSystem = config.get<boolean>('useSystemPixi', false);
 
-            if (useGlobal) {
-                // Already using global, nothing to do
+            if (useSystem) {
+                // Already using system, nothing to do
                 return;
             }
 
             // Check if ignored
-            const ignoreKey = 'pixi.ignoreGlobalPixi';
+            const ignoreKey = 'pixi.ignoreSystemPixi';
             if (context.globalState.get<boolean>(ignoreKey)) {
                 return;
             }
 
-            // Check if global pixi exists
+            // Check if system pixi exists
             // We use a separate check here because getPixiPath points to local by default
-            const globalName = this._pixiName;
+            const systemName = this._pixiName;
             try {
-                await execAsync(`"${globalName}" --version`);
+                await execAsync(`"${systemName}" --version`);
 
                 // It exists! Prompt user.
                 const selection = await vscode.window.showInformationMessage(
-                    "A global installation of Pixi was detected. Would you like to use it instead of the local version?",
+                    "A system installation of Pixi was detected. Would you like to use it instead of the bundled version?",
                     "Yes",
-                    "No (Use Local)",
+                    "No (Use Bundled Version)",
                     "Later"
                 );
 
                 if (selection === "Yes") {
-                    await config.update('useGlobalPixi', true, vscode.ConfigurationTarget.Global);
+                    await config.update('useSystemPixi', true, vscode.ConfigurationTarget.Global);
 
                     const autoReload = config.get<boolean>('autoReload');
                     if (autoReload) {
-                        vscode.window.showInformationMessage("Switched to Global Pixi. Reloading window...");
+                        vscode.window.showInformationMessage("Switched to System Pixi. Reloading window...");
                         vscode.commands.executeCommand("workbench.action.reloadWindow");
                     } else {
                         const reloadSelection = await vscode.window.showInformationMessage(
-                            "Switched to Global Pixi. Reload window to apply changes?",
+                            "Switched to System Pixi. Reload window to apply changes?",
                             "Reload"
                         );
                         if (reloadSelection === "Reload") {
                             vscode.commands.executeCommand("workbench.action.reloadWindow");
                         }
                     }
-                } else if (selection === "No (Use Local)") {
+                } else if (selection === "No (Use Bundled Version)") {
                     await context.globalState.update(ignoreKey, true);
                 }
                 // Later: Do nothing
             } catch {
-                // Global pixi not found
+                // System pixi not found
                 return;
             }
         })();
 
-        return this._globalCheckPromise;
+        return this._systemCheckPromise;
     }
 
     public async ensurePixi(): Promise<void> {
@@ -200,24 +200,24 @@ export class PixiManager {
     }
 
     public async installPixi(): Promise<void> {
-        if (this._globalCheckPromise) {
-            await this._globalCheckPromise;
+        if (this._systemCheckPromise) {
+            await this._systemCheckPromise;
         }
 
-        // Check if we are supposed to be using global pixi
+        // Check if we are supposed to be using system pixi
         const config = vscode.workspace.getConfiguration('pixi');
-        if (config.get<boolean>('useGlobalPixi')) {
+        if (config.get<boolean>('useSystemPixi')) {
             const selection = await vscode.window.showErrorMessage(
-                "Global Pixi executable not found. Would you like to disable the 'Use Global Pixi' setting and install Pixi locally?",
+                "System Pixi executable not found. Would you like to disable the 'Use System Pixi' setting and install Pixi locally?",
                 "Disable & Install Locally",
                 "Cancel"
             );
 
             if (selection === "Disable & Install Locally") {
-                await config.update('useGlobalPixi', false, vscode.ConfigurationTarget.Global);
+                await config.update('useSystemPixi', false, vscode.ConfigurationTarget.Global);
                 // Proceed with local installation
             } else {
-                throw new Error("Global Pixi not found and local installation cancelled.");
+                throw new Error("System Pixi not found and local installation cancelled.");
             }
         }
 

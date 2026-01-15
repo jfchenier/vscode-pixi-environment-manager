@@ -49,10 +49,10 @@
           "default": true,
           "description": "Automatically check for Pixi updates on startup."
         },
-        "pixi.useGlobalPixi": {
+        "pixi.useSystemPixi": {
           "type": "boolean",
           "default": false,
-          "description": "If true, the extension will use the globally installed 'pixi' executable instead of the local one."
+          "description": "If true, the extension will use the System 'pixi' executable instead of the self-contained one."
         },
         "pixi.showDefaultEnvironment": {
           "type": "boolean",
