@@ -50,6 +50,7 @@ export async function activate(context: vscode.ExtensionContext) {
     pixiManager.checkAndPromptSystemPixi(context);
 
     // Auto-activate saved environment
+    outputChannel.appendLine("Pixi: Attempting auto-activation on startup...");
     await envManager.autoActivate();
 
 
@@ -64,6 +65,57 @@ export async function activate(context: vscode.ExtensionContext) {
     pixiManager.checkUpdate(context).catch(e => {
         console.error("Failed to check for updates:", e);
     });
+
+    // Watch for pixi.toml/lock changes
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    let watcher: vscode.FileSystemWatcher | undefined;
+
+    if (workspaceFolder) {
+        // Use RelativePattern for better reliability across different OS/Git operations
+        const pattern = new vscode.RelativePattern(workspaceFolder, "**/{pixi.toml,pixi.lock}");
+        watcher = vscode.workspace.createFileSystemWatcher(pattern);
+        outputChannel.appendLine("Pixi: Config Watcher initialized with RelativePattern.");
+    } else {
+        // Fallback for empty workspace? Pixi doesn't really work without workspace folder generally settings-wise
+        watcher = vscode.workspace.createFileSystemWatcher('**/pixi.{toml,lock}');
+        outputChannel.appendLine("Pixi: Config Watcher initialized with global pattern.");
+    }
+
+    let debounceTimer: NodeJS.Timeout;
+
+    const handleConfigChange = (uri: vscode.Uri) => {
+        const fsPath = uri.fsPath;
+        // Double check extension just in case
+        if (!fsPath.endsWith('pixi.toml') && !fsPath.endsWith('pixi.lock')) {
+            return;
+        }
+
+        outputChannel.appendLine(`Pixi: Config change detected on ${fsPath}`);
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            // Unified check logic also respects 'disableConfigChangePrompt'
+            // and prompts if out of sync.
+            // We pass the filename to detect lockfile-specific changes (git stash/pull)
+            // even if status check passes.
+            await envManager.checkAndPromptForUpdate(false, fsPath);
+        }, 1000);
+    };
+
+    if (watcher) {
+        context.subscriptions.push(watcher.onDidChange(handleConfigChange));
+        context.subscriptions.push(watcher.onDidCreate(handleConfigChange));
+        context.subscriptions.push(watcher.onDidDelete(handleConfigChange));
+        context.subscriptions.push(watcher);
+    }
+
+    // Also listen to editor saves (more reliable for in-editor changes)
+    context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
+        const fsPath = doc.uri.fsPath;
+        if (fsPath.endsWith('pixi.toml') || fsPath.endsWith('pixi.lock')) {
+            outputChannel.appendLine(`Pixi: Document saved in editor: ${fsPath}`);
+            handleConfigChange(doc.uri);
+        }
+    }));
 }
 
 

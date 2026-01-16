@@ -87,7 +87,7 @@ suite('Environment Manager Test Suite', () => {
             },
             workspaceState: {
                 get: (key: string) => {
-                    if (key === 'pixiSelectedEnvironment') {return storedEnv;}
+                    if (key === 'pixiSelectedEnvironment') { return storedEnv; }
                     return undefined;
                 },
                 update: (key: string, value: string) => {
@@ -198,7 +198,7 @@ suite('Environment Manager Test Suite', () => {
             workspaceState: {
                 get: () => storedEnv,
                 update: (key: string, value: any) => {
-                    if (key === 'pixiSelectedEnvironment') {storedEnv = value;}
+                    if (key === 'pixiSelectedEnvironment') { storedEnv = value; }
                     return Promise.resolve();
                 }
             },
@@ -220,4 +220,52 @@ suite('Environment Manager Test Suite', () => {
         assert.strictEqual(clearCalled, true, 'Collection should be cleared');
         assert.strictEqual(storedEnv, undefined, 'State should be cleared');
     });
+});
+
+test('checkAndPromptForUpdate prompts if lockfile check fails', async () => {
+    let promptShown = false;
+    let activateCalled = false;
+    let lockCheckRun = false;
+
+    const showInfoOriginal = vscode.window.showInformationMessage;
+    // @ts-expect-error Mock implementation
+    vscode.window.showInformationMessage = async (msg: string, ...items: string[]) => {
+        if (msg.includes('out of sync')) {
+            promptShown = true;
+            return 'Yes';
+        }
+        return undefined;
+    };
+
+    const mockExec = async (cmd: string) => {
+        if (cmd.includes('lock --check')) {
+            lockCheckRun = true;
+            throw new Error('Lockfile out of sync');
+        }
+        return { stdout: '', stderr: '' };
+    };
+
+    const mockContext: any = {
+        environmentVariableCollection: { replace: () => { }, clear: () => { } },
+        workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+        subscriptions: []
+    };
+
+    class TestEnvMgr extends EnvironmentManager {
+        public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+        public override async activate(silent: boolean, forceEnv?: string) {
+            activateCalled = true;
+        }
+        public override getCurrentEnvName() { return 'default'; }
+    }
+
+    const envMgr = new TestEnvMgr(new MockPixiManager(), mockContext, undefined, mockExec);
+
+    await envMgr.checkAndPromptForUpdate();
+
+    vscode.window.showInformationMessage = showInfoOriginal;
+
+    assert.ok(lockCheckRun, 'Should run pixi lock --check');
+    assert.ok(promptShown, 'Should prompt user');
+    assert.ok(activateCalled, 'Should activate if user selects Yes');
 });

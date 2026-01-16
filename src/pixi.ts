@@ -157,9 +157,9 @@ export class PixiManager {
 
                 // It exists! Prompt user.
                 const selection = await vscode.window.showInformationMessage(
-                    "A system installation of Pixi was detected. Would you like to use it instead of the bundled version?",
+                    "A system installation of Pixi was detected. Would you like to use it instead of the bundled executable?",
                     "Yes",
-                    "No (Use Bundled Version)",
+                    "No (Use Bundled Executable)",
                     "Later"
                 );
 
@@ -179,7 +179,7 @@ export class PixiManager {
                             vscode.commands.executeCommand("workbench.action.reloadWindow");
                         }
                     }
-                } else if (selection === "No (Use Bundled Version)") {
+                } else if (selection === "No (Use Bundled Executable)") {
                     await context.globalState.update(ignoreKey, true);
                 }
                 // Later: Do nothing
