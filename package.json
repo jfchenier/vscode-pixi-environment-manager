@@ -98,6 +98,11 @@
         "category": "Pixi Env"
       },
       {
+        "command": "pixi.runTask",
+        "title": "Run Task",
+        "category": "Pixi Env"
+      },
+      {
         "command": "pixi.clear",
         "title": "Clear Environment",
         "category": "Pixi Env"
@@ -118,11 +123,33 @@
           "when": "pixi.hasProjectManifest && pixi.isPixiInstalled"
         },
         {
+          "command": "pixi.runTask",
+          "when": "pixi.hasProjectManifest && pixi.isPixiInstalled"
+        },
+        {
           "command": "pixi.activate",
           "when": "pixi.hasPixiDirectory"
         }
       ]
-    }
+    },
+    "taskDefinitions": [
+      {
+        "type": "pixi",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The pixi task to run"
+          },
+          "environment": {
+            "type": "string",
+            "description": "The environment to run the task in"
+          }
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

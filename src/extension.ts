@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { PixiManager } from './pixi';
 import { EnvironmentManager } from './environment';
+import { PixiTaskProvider } from './tasks';
 
 export async function activate(context: vscode.ExtensionContext) {
 
@@ -116,6 +117,50 @@ export async function activate(context: vscode.ExtensionContext) {
             handleConfigChange(doc.uri);
         }
     }));
+
+    // Task Support
+    if (workspaceFolder) {
+        const taskProvider = new PixiTaskProvider(workspaceFolder.uri.fsPath, pixiManager);
+        context.subscriptions.push(vscode.tasks.registerTaskProvider(PixiTaskProvider.PixiType, taskProvider));
+
+        // Command: Run Task
+        context.subscriptions.push(vscode.commands.registerCommand('pixi.runTask', async () => {
+            const tasks = await taskProvider.provideTasks();
+            if (!tasks || tasks.length === 0) {
+                vscode.window.showInformationMessage('No tasks found in pixi.toml.');
+                return;
+            }
+
+            const items = tasks.map(task => ({
+                label: task.name,
+                description: task.detail,
+                task: task
+            }));
+
+            const selection = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select a Pixi task to run'
+            });
+
+            if (selection) {
+                vscode.tasks.executeTask(selection.task);
+            }
+        }));
+
+        // Status Bar Item
+        const statusBarTask = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+        statusBarTask.text = "$(play) Pixi Tasks";
+        statusBarTask.command = "pixi.runTask";
+        statusBarTask.tooltip = "Run a Pixi task";
+        statusBarTask.show();
+        context.subscriptions.push(statusBarTask);
+
+        // Invalidate tasks on config change
+        if (watcher) {
+            context.subscriptions.push(watcher.onDidChange(() => taskProvider.invalidate()));
+            context.subscriptions.push(watcher.onDidCreate(() => taskProvider.invalidate()));
+            context.subscriptions.push(watcher.onDidDelete(() => taskProvider.invalidate()));
+        }
+    }
 }
 
 

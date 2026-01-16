@@ -1,78 +1,50 @@
-# Pixi Extension Development Guide
+# Development Guide
 
-This guide describes how to build, run, and test the Pixi VS Code extension from source.
+This document provides instructions on how to set up the environment, build the extension, and run it locally.
 
 ## Prerequisites
-
-* [Node.js](https://nodejs.org/) (version 18 or higher recommended)
-* [npm](https://www.npmjs.com/) (usually comes with Node.js)
-* [Pixi](https://pixi.sh/) (Optional: Useful for manual verification, but the extension can download its own copy)
-
-## Architecture
-
-For a deep dive into how the code works, please see [ARCHITECTURE.md](ARCHITECTURE.md).
+- **Node.js**: Version 20 or higher.
+- **npm**: Included with Node.js.
 
 ## Setup
 
-1.  **Clone the Repository**:
+1.  **Clone the repository**:
     ```bash
     git clone https://github.com/jfchenier/vscode-pixi-environment-manager.git
     cd vscode-pixi-environment-manager
     ```
 
-2.  **Install Dependencies**:
+2.  **Install dependencies**:
     ```bash
     npm install
     ```
 
 ## Building
 
-To compile the TypeScript source code to JavaScript:
-
+To compile the source code:
 ```bash
 npm run compile
 ```
 
-For continuous compilation during development (watch mode):
-
+To watch for changes (useful during development):
 ```bash
 npm run watch
 ```
 
-## Running and Debugging
+## Running the Extension
 
-1.  Open the project in **VS Code**.
-2.  Press **F5** to start debugging. This will open a new "Extension Development Host" window with the extension loaded.
-3.  In the new window, you can run the Pixi commands to verify functionality.
-
-## Linting
-
-To run the linter:
-
-```bash
-npm run lint
-```
+1.  Open the project directory in VS Code.
+2.  Press **F5** (or go to `Run` -> `Start Debugging`).
+3.  This will launch a new VS Code window (Extension Development Host) with the extension loaded.
 
 ## Testing
 
-To run the integration tests:
-
+Run the full test suite:
 ```bash
 npm run test
 ```
 
-## Packaging
-
-To create a VSIX package for manual installation or publishing:
-
-1.  Install `vsce` globally if needed:
-    ```bash
-    npm install -g @vscode/vsce
-    ```
-
-2.  Package the extension:
-    ```bash
-    vsce package
-    ```
-
-This will generate a `.vsix` file in the project directory.
+Run linter:
+```bash
+npm run lint
+```
