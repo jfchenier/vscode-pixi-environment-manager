@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -36,7 +37,7 @@ jobs:
           name: extension-vsix
           path: ./*.vsix
 
-  publish:
+  publish-vsce:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -55,12 +56,31 @@ jobs:
           name: extension-vsix
 
       - name: Publish to VS Code Marketplace
-        run: npx vsce publish --packagePath *.vsix -p ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --packagePath *.vsix -p ${{ secrets.VSCE_PAT }} --skip-duplicate
+
+  publish-ovsx:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-vsix
 
       - name: Publish to Open VSX Registry
-        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }} --skip-duplicate
 
   release:
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     permissions:
