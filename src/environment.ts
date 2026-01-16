@@ -11,6 +11,8 @@ export class EnvironmentManager {
     private _terminalListener: vscode.Disposable | undefined;
     private _statusBarItem: vscode.StatusBarItem;
     private static readonly envStateKey = 'pixiSelectedEnvironment';
+    public isUpdating = false;
+    private isChecking = false;
 
     constructor(pixiManager: PixiManager, context: vscode.ExtensionContext, outputChannel?: vscode.OutputChannel, exec?: (command: string, options?: any) => Promise<{ stdout: string, stderr: string }>) {
         this._pixiManager = pixiManager;
@@ -253,9 +255,15 @@ export class EnvironmentManager {
                 title,
                 cancellable: false
             }, async () => {
-                return await this._exec(cmd, {
-                    cwd: workspaceUri.fsPath
-                });
+                this.isUpdating = true;
+                try {
+                    return await this._exec(cmd, {
+                        cwd: workspaceUri.fsPath
+                    });
+                } finally {
+                    // Small delay to let watcher debounce settle if it triggered
+                    setTimeout(() => { this.isUpdating = false; }, 2000);
+                }
             });
 
             // Log stderr (where script output usually goes) to output channel
@@ -407,10 +415,12 @@ export class EnvironmentManager {
             };
 
             // Execute the task
+            this.isUpdating = true; // Prevent watcher loop
             vscode.tasks.executeTask(task).then(execution => {
                 const disposable = vscode.tasks.onDidEndTaskProcess(e => {
                     if (e.execution === execution) {
                         disposable.dispose();
+                        this.isUpdating = false; // Reset flag
                         if (e.exitCode === 0) {
                             resolve();
                         } else {
@@ -419,6 +429,7 @@ export class EnvironmentManager {
                     }
                 });
             }, error => {
+                this.isUpdating = false; // Reset flag on error
                 reject(new Error(`Failed to start task: ${error}`));
             });
         });
@@ -505,7 +516,12 @@ export class EnvironmentManager {
                 title: "Installing pixi-pack...",
                 cancellable: false
             }, async () => {
-                await this._exec(`"${pixiPath}" add pixi-pack`, { cwd: workspaceRoot });
+                this.isUpdating = true;
+                try {
+                    await this._exec(`"${pixiPath}" add pixi-pack`, { cwd: workspaceRoot });
+                } finally {
+                    this.isUpdating = false;
+                }
             });
 
 
@@ -1126,7 +1142,14 @@ if exist "%SCRIPT_DIR%activate.bat" (
         }
     }
 
-    public async activate(silent: boolean = false): Promise<void> {
+    public getCurrentEnvName(): string | undefined {
+        const savedEnv = this._context.workspaceState.get<string>(EnvironmentManager.envStateKey);
+        const config = vscode.workspace.getConfiguration('pixi');
+        const defaultEnv = config.get<string>('environment', 'default');
+        return savedEnv || defaultEnv;
+    }
+
+    public async activate(silent: boolean = false, forceEnv?: string): Promise<void> {
         // Check for Offline Mode
         const config = vscode.workspace.getConfiguration('pixi');
         const offlineName = config.get<string>('offlineEnvironmentName', 'env');
@@ -1288,9 +1311,9 @@ if exist "%SCRIPT_DIR%activate.bat" (
             envs.push(offlineName);
         }
 
-        let selectedEnv = '';
+        let selectedEnv = forceEnv || '';
 
-        if (!silent && envs.length > 0) {
+        if (!selectedEnv && !silent && envs.length > 0) {
             const pick = await vscode.window.showQuickPick(envs, {
                 placeHolder: 'Select Pixi Environment to Activate'
             });
@@ -1493,6 +1516,72 @@ if exist "%SCRIPT_DIR%activate.bat" (
     }
 
 
+
+    public async checkAndPromptForUpdate(silent: boolean = false, changedFile?: string): Promise<boolean> {
+        if (this.isChecking) { return false; } // Prevent re-entry
+
+        const config = vscode.workspace.getConfiguration('pixi');
+        if (config.get<boolean>('disableConfigChangePrompt')) {
+            return false;
+        }
+
+        const workspaceUri = this.getWorkspaceFolderURI();
+        if (!workspaceUri) { return false; }
+        const pixiPath = this._pixiManager.getPixiPath();
+        if (!pixiPath) { return false; }
+
+        this.isChecking = true;
+        try {
+            this.log('Checking environment status (pixi lock --check)...');
+            // Check if lockfile is consistent with manifest
+            // 'pixi lock --check' returns non-zero if out of sync
+            await this._exec(`"${pixiPath}" lock --check`, { cwd: workspaceUri.fsPath });
+
+            // If check pass...
+            this.log('Environment is in sync (manifest matches lockfile).');
+
+            // BUT, if the lockfile itself changed (e.g. git stash, pull), the INSTALLED environment might be stale.
+            // If we are NOT updating (self), and lockfile changed, we should prompt.
+            if (changedFile && changedFile.endsWith('pixi.lock') && !this.isUpdating) {
+                this.log(`Lockfile changed externally (${changedFile}). Environment might be stale despite lock consistency.`);
+                throw new Error("Lockfile changed");
+            }
+
+            return false;
+        } catch (_e) {
+            // If failed, it means out of sync (or error)
+            this.log(`Environment out of sync (pixi lock --check failed).`);
+
+            if (silent) { return false; }
+
+            const selection = await vscode.window.showInformationMessage(
+                "Pixi environment is out of sync. Do you want to update?",
+                "Yes", "No", "Never ask again"
+            );
+
+            if (selection === "Yes") {
+                const currentEnv = this.getCurrentEnvName();
+                await this.activate(false, currentEnv);
+                return true; // We handled activation
+            } else if (selection === "Never ask again") {
+                await config.update('disableConfigChangePrompt', true, vscode.ConfigurationTarget.Global);
+                return false; // User didn't want update, maybe auto-activate will run?
+                // If user said "Never", prompting disabled.
+                // Should we still auto-activate?
+                // If we return false, autoActivate runs.
+                // autoActivate updates.
+                // If user said "No" (implicit), they might not want update.
+                // But "Never ask again" implies "Don't ask", not "Don't update".
+            }
+            // selection === "No" or dismissed
+            this.log('User ignored update prompt.');
+            return true; // We prompted, user declined.
+            // If user explicitly said No to "Update", we probably shouldn't auto-activate (which updates).
+            // So return true (handled).
+        } finally {
+            this.isChecking = false;
+        }
+    }
 
     private getSafeShellExecutionOptions(cwd: string): vscode.ShellExecutionOptions {
         // We must explicitly specify the shell executable to avoid using the user's "Default Profile".
