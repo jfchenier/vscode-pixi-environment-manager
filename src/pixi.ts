@@ -88,13 +88,6 @@ export class PixiManager {
         const useSystem = config.get<boolean>('useSystemPixi', false);
 
         if (useSystem) {
-            // Return 'pixi' to rely on system PATH, or resolve it?
-            // "pixi" is simpler but might fail if PATH isn't propagated to VSCode perfectly.
-            // But 'pixi' usually works in terminal.
-            // However, child_process.exec might need full path?
-            // Let's assume 'pixi' works if in path.
-            // Or better: try to find it?
-            // For now, let's return 'pixi'.
             return this._pixiName; // 'pixi' or 'pixi.exe'
         }
 
@@ -136,21 +129,16 @@ export class PixiManager {
 
         this._systemCheckPromise = (async () => {
             const config = vscode.workspace.getConfiguration('pixi');
-            const useSystem = config.get<boolean>('useSystemPixi', false);
+            const inspect = config.inspect<boolean>('useSystemPixi');
 
-            if (useSystem) {
-                // Already using system, nothing to do
-                return;
-            }
-
-            // Check if ignored
-            const ignoreKey = 'pixi.ignoreSystemPixi';
-            if (context.globalState.get<boolean>(ignoreKey)) {
+            // If the user has explicitly set this value (Global, Workspace, or Folder), respect it and do NOT prompt.
+            // Only prompt if it's purely using the default value (undefined/null in specific scopes).
+            if (inspect?.globalValue !== undefined || inspect?.workspaceValue !== undefined || inspect?.workspaceFolderValue !== undefined) {
                 return;
             }
 
             // Check if system pixi exists
-            // We use a separate check here because getPixiPath points to local by default
+            // Use a separate check here because getPixiPath points to local by default
             const systemName = this._pixiName;
             try {
                 await execAsync(`"${systemName}" --version`);
@@ -180,9 +168,10 @@ export class PixiManager {
                         }
                     }
                 } else if (selection === "No (Use Bundled Executable)") {
-                    await context.globalState.update(ignoreKey, true);
+                    // Explicitly set to false to stop future prompts
+                    await config.update('useSystemPixi', false, vscode.ConfigurationTarget.Global);
                 }
-                // Later: Do nothing
+                // Later: Do nothing, will check again next restart
             } catch {
                 // System pixi not found
                 return;
@@ -204,7 +193,7 @@ export class PixiManager {
             await this._systemCheckPromise;
         }
 
-        // Check if we are supposed to be using system pixi
+        // Check if supposed to be using system pixi
         const config = vscode.workspace.getConfiguration('pixi');
         if (config.get<boolean>('useSystemPixi')) {
             const selection = await vscode.window.showErrorMessage(
@@ -230,9 +219,7 @@ export class PixiManager {
 
         this.log(`Installing Pixi for platform: ${platform}, arch: ${arch}`);
 
-        // Correct URLs check
-        // User used: https://github.com/prefix-dev/pixi/releases/latest/download/pixi-x86_64-unknown-linux-musl.tar.gz
-        // This seems correct for Linux.
+        // Determine download URL based on platform/arch
 
         let downloadUrl = '';
         if (platform === 'linux' && arch === 'x64') {
@@ -265,8 +252,7 @@ export class PixiManager {
 
             progress.report({ message: "Extracting..." });
 
-            // Validate file before extracting?
-            // Simple size check?
+            // Simple size check to validate download
             const stats = await fs.promises.stat(destFile);
             if (stats.size < 1000) {
                 throw new Error(`Downloaded file is too small (${stats.size} bytes). Likely failed.`);

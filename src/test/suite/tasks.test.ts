@@ -1,9 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { PixiTaskProvider } from '../../tasks';
 import { PixiManager } from '../../pixi';
-
 // Mock PixiManager
 class MockPixiManager extends PixiManager {
     constructor() {
@@ -12,23 +10,6 @@ class MockPixiManager extends PixiManager {
     public getPixiPath(): string | undefined {
         return '/mock/pixi';
     }
-}
-
-// Subclass to override exec
-class TestPixiTaskProvider extends PixiTaskProvider {
-    public mockStdout: string = '[]';
-
-    // Override the protected/private exec. 
-    // In TS, we can override private if we cast or if we change source to protected.
-    // For now, we assume we might need to cast or use 'any' if it's strict private.
-    // But better yet, I will update tasks.ts to make `exec` protected if needed.
-    // Actually, let's just use prototype patching or a simpler approach if we don't want to modify source.
-    // But modifying source to `protected` is cleaner.
-    // Let's assume I'll make it protected in the next step or use `any` trick.
-
-    // Since I cannot easily change the source signature from here without an edit,
-    // I will use a spy/stub approach or simple overwrite if allowed.
-    // Let's simulate the behavior by overwriting the method on the instance for testing.
 }
 
 suite('Pixi Task Provider Test Suite', () => {
@@ -119,10 +100,8 @@ suite('Pixi Task Provider Test Suite', () => {
         // Expected: "test" (default), "train (cuda)" (cuda)
         // "test" (cuda) should be skipped because it belongs to 'default' feature which is in default env
 
-        // Wait, my deduplication logic is based on FEATURE NAME.
-        // In default env, feature is "default".
-        // In cuda env, it inherits "default" feature (containing "test").
-        // So my logic `if (!isDefault && defaultFeatureNames.has(feature.name)) continue;` logic should work.
+        // Expected: "test" (default), "train (cuda)" (cuda)
+        // "test" (cuda) should be skipped because it belongs to 'default' feature which is in default env
 
         const names = tasks!.map(t => t.name).sort();
         assert.deepStrictEqual(names, ['test', 'train (cuda)']);

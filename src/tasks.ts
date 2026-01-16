@@ -95,11 +95,9 @@ export class PixiTaskProvider implements vscode.TaskProvider {
                             continue;
                         }
                         // Unique key: name + env
-                        // For default tasks: "taskname"
-                        // For other envs: "taskname (envname)"
                         const taskName = isDefault ? taskJson.name : `${taskJson.name} (${env.environment})`;
 
-                        // We filter duplicates based on this display name
+                        // Filter duplicates based on this display name
                         if (!seenTaskKeys.has(taskName)) {
                             seenTaskKeys.add(taskName);
                             tasks.push(this.getTask(
@@ -127,8 +125,6 @@ export class PixiTaskProvider implements vscode.TaskProvider {
         const pixiPath = this.pixiManager.getPixiPath() || 'pixi';
 
         // Execute task: pixi run -e <env> <task_name>
-        // Note: pixi run -e default <task> is valid, but we omit -e for default to be cleaner?
-        // Actually, explicit is better, but existing logic omitted it.
         // If environment is undefined, it runs in default/selected env.
 
         const envArg = environment ? ` -e ${environment}` : '';

@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 
- 
+
 const proxyquire = require('proxyquire').noCallThru();
 
 suite('Micromamba Conflict Test Suite', () => {
@@ -18,7 +18,7 @@ suite('Micromamba Conflict Test Suite', () => {
             getWorkspaceFolder: (uri: any) => ({ uri: { fsPath: '/mock/workspace' }, index: 0, name: 'Workspace' }),
             getConfiguration: () => ({
                 get: (key: string, def?: any) => {
-                    if (key in mockConfig) {return mockConfig[key];}
+                    if (key in mockConfig) { return mockConfig[key]; }
                     return def;
                 },
                 update: () => Promise.resolve()
@@ -120,7 +120,15 @@ suite('Micromamba Conflict Test Suite', () => {
             isPixiInstalled: () => Promise.resolve(true),
             getPixiPath: () => Promise.resolve('/usr/bin/pixi')
         };
-        envManager = new EnvironmentManager(mockPixiManager, context);
+        const mockExec = async (cmd: string) => {
+            if (cmd.includes('info --json')) {
+                return { stdout: JSON.stringify({ environments_info: [{ name: 'default', prefix: '/mock/prefix' }] }), stderr: '' };
+            } else if (cmd.includes('shell-hook')) {
+                return { stdout: 'export FOO=BAR', stderr: '' };
+            }
+            return { stdout: '', stderr: '' };
+        };
+        envManager = new EnvironmentManager(mockPixiManager, context, undefined, mockExec);
     });
 
     teardown(() => {
@@ -130,10 +138,7 @@ suite('Micromamba Conflict Test Suite', () => {
     });
 
     test('Activate attempts to deactivate micromamba if conflicting command exists', async () => {
-        // Run activate
-        // We expect it to find a known command in getCommands (mocked)
-        // Then execute it.
-        // Simulate active micromamba env
+        // Run activate. Expect it to find a known command in getCommands (mocked) and execute it.
         process.env.CONDA_PREFIX = '/mock/env';
         await envManager.activate();
 
@@ -174,7 +179,7 @@ suite('Micromamba Conflict Test Suite', () => {
 
         // Ensure no active env vars
         delete process.env.CONDA_PREFIX;
-        // delete process.env.MAMBA_EXE; // We don't check this anymore, checking just prefix is enough
+        // delete process.env.MAMBA_EXE; // No longer checking this, checking just prefix is enough
 
         commandCalls = [];
         await envManager.activate();

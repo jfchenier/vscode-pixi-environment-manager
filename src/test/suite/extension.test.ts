@@ -13,9 +13,5 @@ suite('Extension Test Suite', () => {
         assert.strictEqual(-1, [1, 2, 3].indexOf(0));
     });
 
-    // test('Commands are registered', async () => {
-    // 	const commands = await vscode.commands.getCommands(true);
-    // 	assert.ok(commands.includes('pixi.createEnvironment'));
-    // 	assert.ok(commands.includes('pixi.activate'));
-    // });
+
 });
