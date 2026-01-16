@@ -1,6 +1,25 @@
+
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { EnvironmentManager } from '../../environment';
+import { EnvironmentManager as RealEnvironmentManager } from '../../environment'; // Import real type
+const proxyquire = require('proxyquire').noCallThru();
+
+// Mock dependencies
+const mockFs = {
+    existsSync: (path: string) => {
+        if (path.includes('.pixi/envs/default')) return true;
+        if (path.includes('.pixi/envs/pixi')) return true; // Mock pixi env existence
+        return true; // Default to true for legacy tests unless specific path needed
+    }
+};
+
+// Load EnvironmentManager with mocks
+const { EnvironmentManager } = proxyquire('../../environment', {
+    'fs': mockFs,
+    'vscode': vscode // Pass real vscode to allow normal behavior
+});
+
+// Import PixiManager normally
 import { PixiManager } from '../../pixi';
 
 class MockPixiManager extends PixiManager {
@@ -11,6 +30,9 @@ class MockPixiManager extends PixiManager {
         return '/mock/pixi';
     }
 }
+
+// Helper to cast the proxied class to the real type for TS
+const MockedEnvironmentManager = EnvironmentManager as typeof RealEnvironmentManager;
 
 suite('Environment Manager Test Suite', () => {
 
@@ -57,7 +79,8 @@ suite('Environment Manager Test Suite', () => {
 
         const mockPixi = new MockPixiManager();
         mockPixi.getPixiPath = () => '/mock/workspace/.pixi/bin/pixi';
-        class TestEnvironmentManager extends EnvironmentManager {
+
+        class TestEnvironmentManager extends MockedEnvironmentManager {
             public override getWorkspaceFolderURI(): vscode.Uri {
                 return vscode.Uri.file('/mock/workspace');
             }
@@ -112,7 +135,7 @@ suite('Environment Manager Test Suite', () => {
 
         const mockPixi = new MockPixiManager();
 
-        class TestEnvironmentManager extends EnvironmentManager {
+        class TestEnvironmentManager extends MockedEnvironmentManager {
             public override getWorkspaceFolderURI(): vscode.Uri {
                 return vscode.Uri.file('/mock/workspace');
             }
@@ -153,7 +176,7 @@ suite('Environment Manager Test Suite', () => {
             subscriptions: []
         };
 
-        class TestEnvironmentManager extends EnvironmentManager {
+        class TestEnvironmentManager extends MockedEnvironmentManager {
             public override getWorkspaceFolderURI(): vscode.Uri {
                 return vscode.Uri.file('/mock/workspace');
             }
@@ -208,7 +231,7 @@ suite('Environment Manager Test Suite', () => {
         const mockPixi = new MockPixiManager();
         const mockExec = async () => ({ stdout: '', stderr: '' }); // Unused for deactivate
 
-        class TestEnvironmentManager extends EnvironmentManager {
+        class TestEnvironmentManager extends MockedEnvironmentManager {
             public override getWorkspaceFolderURI(): vscode.Uri {
                 return vscode.Uri.file('/mock/workspace');
             }
@@ -220,52 +243,230 @@ suite('Environment Manager Test Suite', () => {
         assert.strictEqual(clearCalled, true, 'Collection should be cleared');
         assert.strictEqual(storedEnv, undefined, 'State should be cleared');
     });
-});
 
-test('checkAndPromptForUpdate prompts if lockfile check fails', async () => {
-    let promptShown = false;
-    let activateCalled = false;
-    let lockCheckRun = false;
+    test('checkAndPromptForUpdate prompts if lockfile check fails', async () => {
+        let promptShown = false;
+        let activateCalled = false;
+        let lockCheckRun = false;
 
-    const showInfoOriginal = vscode.window.showInformationMessage;
-    // @ts-expect-error Mock implementation
-    vscode.window.showInformationMessage = async (msg: string, ...items: string[]) => {
-        if (msg.includes('out of sync')) {
+        const showInfoOriginal = vscode.window.showInformationMessage;
+
+        // Stub real vscode.window
+        (vscode.window as any).showInformationMessage = async (msg: string, ...items: string[]) => {
+            if (msg.includes('out of sync')) {
+                promptShown = true;
+                return 'Yes';
+            }
+            return undefined;
+        };
+
+        const mockExec = async (cmd: string) => {
+            if (cmd.includes('lock --check')) {
+                lockCheckRun = true;
+                throw new Error('Lockfile out of sync');
+            }
+            return { stdout: '', stderr: '' };
+        };
+
+        const mockContext: any = {
+            environmentVariableCollection: { replace: () => { }, clear: () => { } },
+            workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+            subscriptions: []
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+            public override async activate(silent: boolean, forceEnv?: string) {
+                activateCalled = true;
+            }
+            public override getCurrentEnvName() { return 'default'; }
+        }
+
+        const envMgr = new TestEnvMgr(new MockPixiManager(), mockContext, undefined, mockExec);
+
+        await envMgr.checkAndPromptForUpdate();
+
+        // Restore
+        (vscode.window as any).showInformationMessage = showInfoOriginal;
+
+        assert.ok(promptShown, 'Should prompt user');
+        assert.ok(activateCalled, 'Should activate if user selects Yes');
+    });
+
+    test('checkAndPromptForUpdate DOES NOT prompt if environment directory is missing', async () => {
+        let promptShown = false;
+
+        // Use any to bypass strict overload matching for the mock
+        (vscode.window as any).showInformationMessage = async (msg: string) => {
             promptShown = true;
-            return 'Yes';
+            return undefined;
+        };
+
+        const mockExec = async () => ({ stdout: '', stderr: '' });
+
+        // Mock fs.existsSync to return FALSE for env path (default behavior of our mock above is true, needs override?)
+        // Our mockFs helper above:
+        // if (path.includes('.pixi/envs/pixi')) return true;
+        // return true; 
+
+        // Override mock for this specific test
+        // Proxyquire uses the SAME mock instance if defined at top level?
+        // 'mockFs' is const, but properties can be modified.
+        // const mockFs = { existsSync: ... }
+
+        const originalExists = mockFs.existsSync;
+        mockFs.existsSync = (p: string) => false; // Return false for everything
+
+        const mockContext: any = {
+            environmentVariableCollection: { replace: () => { }, clear: () => { } },
+            workspaceState: { get: () => undefined, subscription: [] }, // No saved state -> defaults to 'default'
+            subscriptions: []
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+            public override getCurrentEnvName() { return 'default'; }
         }
-        return undefined;
-    };
 
-    const mockExec = async (cmd: string) => {
-        if (cmd.includes('lock --check')) {
-            lockCheckRun = true;
-            throw new Error('Lockfile out of sync');
+        const envMgr = new TestEnvMgr(new MockPixiManager(), mockContext, undefined, mockExec);
+
+        const result = await envMgr.checkAndPromptForUpdate();
+
+        // Restore
+        mockFs.existsSync = originalExists;
+
+        assert.strictEqual(result, false);
+        assert.strictEqual(promptShown, false, 'Should NOT prompt');
+    });
+
+    test('autoActivate should respect defaultEnvironment setting (if no saved state)', async () => {
+        const capturedState: { [key: string]: any } = {};
+        const mockContext: any = {
+            workspaceState: {
+                get: (key: string) => capturedState[key],
+                update: (key: string, value: any) => {
+                    capturedState[key] = value;
+                    return Promise.resolve();
+                }
+            },
+            environmentVariableCollection: { clear: () => { }, replace: () => { } },
+            subscriptions: []
+        };
+
+        const mockExec = async (cmd: string) => {
+            if (cmd.includes('info --json')) {
+                return {
+                    stdout: JSON.stringify({
+                        environments_info: [{ name: 'default' }, { name: 'prod' }]
+                    }),
+                    stderr: ''
+                };
+            }
+            return { stdout: '', stderr: '' };
+        };
+
+        const mockPixi = new MockPixiManager();
+        mockPixi.getPixiPath = () => '/mock/workspace/.pixi/bin/pixi';
+
+        // Partial mock of vscode to inject defaultEnvironment config just for this test
+        const originalGetConfig = vscode.workspace.getConfiguration;
+        // @ts-expect-error: Mock implementation doesn't match full VS Code API surface
+        vscode.workspace.getConfiguration = (section: string) => {
+            if (section === 'pixi') {
+                return {
+                    get: (key: string, def?: any) => {
+                        if (key === 'defaultEnvironment') return 'prod';
+                        if (key === 'environment') return undefined;
+                        return def;
+                    },
+                    update: () => Promise.resolve()
+                } as any;
+            }
+            return originalGetConfig(section);
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+            // Stub activate to avoid side effects
+            public override async activate(silent: boolean, forceEnv?: string) {
+                // Do nothing, just verify state update in autoActivate
+            }
         }
-        return { stdout: '', stderr: '' };
-    };
 
-    const mockContext: any = {
-        environmentVariableCollection: { replace: () => { }, clear: () => { } },
-        workspaceState: { get: () => undefined, update: () => Promise.resolve() },
-        subscriptions: []
-    };
+        const envMgr = new TestEnvMgr(mockPixi, mockContext, undefined, mockExec);
+        await envMgr.autoActivate();
 
-    class TestEnvMgr extends EnvironmentManager {
-        public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
-        public override async activate(silent: boolean, forceEnv?: string) {
-            activateCalled = true;
+        // Restore
+        vscode.workspace.getConfiguration = originalGetConfig;
+
+        assert.strictEqual(capturedState['pixiSelectedEnvironment'], 'prod', 'Should select prod');
+    });
+
+    test('autoActivate should override saved state if flag is passed', async () => {
+        let savedState = 'dev';
+        const capturedState: { [key: string]: any } = {};
+
+        const mockContext: any = {
+            workspaceState: {
+                get: (key: string) => savedState,
+                update: (key: string, value: any) => {
+                    savedState = value;
+                    capturedState[key] = value;
+                    return Promise.resolve();
+                }
+            },
+            environmentVariableCollection: { clear: () => { }, replace: () => { } },
+            subscriptions: []
+        };
+
+        const mockExec = async (cmd: string) => {
+            if (cmd.includes('info --json')) {
+                return {
+                    stdout: JSON.stringify({
+                        environments_info: [{ name: 'default' }, { name: 'prod' }, { name: 'dev' }]
+                    }),
+                    stderr: ''
+                };
+            }
+            return { stdout: '', stderr: '' };
+        };
+
+        const mockPixi = new MockPixiManager();
+        mockPixi.getPixiPath = () => '/mock/pixi';
+
+        // Mock config
+        const originalGetConfig2 = vscode.workspace.getConfiguration;
+        // @ts-expect-error: Mock implementation doesn't match full VS Code API surface
+        vscode.workspace.getConfiguration = (section: string) => {
+            if (section === 'pixi') {
+                return {
+                    get: (key: string, def?: any) => {
+                        if (key === 'defaultEnvironment') return 'prod';
+                        return def;
+                    },
+                    update: () => Promise.resolve()
+                } as any;
+            }
+            return originalGetConfig2(section);
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+            public override async activate(silent: boolean, forceEnv?: string) { }
         }
-        public override getCurrentEnvName() { return 'default'; }
-    }
 
-    const envMgr = new TestEnvMgr(new MockPixiManager(), mockContext, undefined, mockExec);
+        const envMgr = new TestEnvMgr(mockPixi, mockContext, undefined, mockExec);
 
-    await envMgr.checkAndPromptForUpdate();
+        // 1. autoActivate() -> should stay 'dev'
+        await envMgr.autoActivate();
+        assert.strictEqual(savedState, 'dev'); // Unchanged
 
-    vscode.window.showInformationMessage = showInfoOriginal;
+        // 2. autoActivate(true) -> should switch to 'prod'
+        await envMgr.autoActivate(true);
+        // Verify state updated
+        assert.strictEqual(savedState, 'prod', 'State should be updated to prod');
 
-    assert.ok(lockCheckRun, 'Should run pixi lock --check');
-    assert.ok(promptShown, 'Should prompt user');
-    assert.ok(activateCalled, 'Should activate if user selects Yes');
+        // Restore
+        vscode.workspace.getConfiguration = originalGetConfig2;
+    });
 });

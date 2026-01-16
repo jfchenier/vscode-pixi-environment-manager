@@ -1,6 +1,6 @@
 
 import * as assert from 'assert';
-// import { EnvironmentManager } from '../../environment'; // We will load via proxyquire
+// import { EnvironmentManager } from '../../environment'; // Load via proxyquire
 
 
 
@@ -120,7 +120,7 @@ suite('Command Visibility Context Test Suite', () => {
         // Reset commands recorded during init
         recordedCommands = [];
 
-        // We mock _exec to succeed
+        // Mock _exec to succeed
         envManager._exec = async () => ({
             stdout: JSON.stringify({ environment_variables: { FOO: 'BAR' } }),
             stderr: ''
@@ -166,7 +166,7 @@ suite('Command Visibility Context Test Suite', () => {
         }, undefined);
 
         // Init: installed = false
-        // We need to wait for the async check in constructor to settle.
+        // Wait for the async check in constructor to settle.
         await new Promise(r => setTimeout(r, 10)); // Yield
 
         let installCall = recordedCommands.find(c => c.key === 'pixi.isPixiInstalled');
@@ -175,10 +175,7 @@ suite('Command Visibility Context Test Suite', () => {
 
         recordedCommands = [];
         px.installed = true;
-        // Trigger update
-        // updatePixiContext is private. We can trigger it via createEnvironment or similar, BUT
-        // createEnvironment uses UI.
-        // We can access private method by cast to any (in test)
+        // Trigger update via cast to any (testing private method)
         (envManager as any).updatePixiContext();
 
         await new Promise(r => setTimeout(r, 10)); // Yield

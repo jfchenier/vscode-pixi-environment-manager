@@ -3,13 +3,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { EnvironmentManager } from '../../environment';
-import { PixiManager } from '../../pixi';
-
-// Mock exec
-const mockExec = async (cmd: string, opts: any) => {
-    return { stdout: '{}', stderr: '' }; // Json or empty
-};
+import { ScriptGenerator } from '../../features/scripts';
 
 suite('Script Generation Test Suite', () => {
     let sandboxDir: string;
@@ -26,25 +20,10 @@ suite('Script Generation Test Suite', () => {
 
     test('generateActivationScripts creates files', async () => {
         const outputChannel = vscode.window.createOutputChannel("Pixi Test");
-        const pixiManager = new PixiManager(outputChannel);
-
-        // Mock context
-        const mockContext = {
-            workspaceState: {
-                get: () => undefined,
-                update: () => Promise.resolve()
-            },
-            environmentVariableCollection: {
-                replace: () => { },
-                clear: () => { }
-            },
-            subscriptions: []
-        } as unknown as vscode.ExtensionContext;
-
-        const envManager = new EnvironmentManager(pixiManager, mockContext, outputChannel, mockExec);
+        const scriptGen = new ScriptGenerator(outputChannel);
 
         const uri = vscode.Uri.file(sandboxDir);
-        await envManager.generateActivationScripts(uri);
+        await scriptGen.generateActivationScripts(uri);
 
         const shPath = path.join(sandboxDir, 'activate.sh');
         assert.ok(fs.existsSync(shPath), 'activate.sh should exist');
@@ -64,20 +43,14 @@ suite('Script Generation Test Suite', () => {
 
     test('generateActivationScripts does not overwrite existing', async () => {
         const outputChannel = vscode.window.createOutputChannel("Pixi Test");
-        const pixiManager = new PixiManager(outputChannel);
-        const mockContext = {
-            environmentVariableCollection: { clear: () => { } },
-            workspaceState: { get: () => undefined, update: () => Promise.resolve() },
-            subscriptions: []
-        } as any;
-        const envManager = new EnvironmentManager(pixiManager, mockContext, outputChannel, mockExec);
+        const scriptGen = new ScriptGenerator(outputChannel);
 
         const uri = vscode.Uri.file(sandboxDir);
         const shPath = path.join(sandboxDir, 'activate.sh');
 
         fs.writeFileSync(shPath, '# custom content');
 
-        await envManager.generateActivationScripts(uri);
+        await scriptGen.generateActivationScripts(uri);
 
         const content = fs.readFileSync(shPath, 'utf8');
         assert.strictEqual(content, '# custom content', 'Should preserve existing content');

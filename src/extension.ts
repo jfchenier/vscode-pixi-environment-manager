@@ -58,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Listen for configuration changes to trigger auto-activation if defaultEnvironment changes
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
         if (e.affectsConfiguration('pixi.defaultEnvironment')) {
-            envManager.autoActivate();
+            envManager.autoActivate(true);
         }
     }));
 
@@ -77,7 +77,7 @@ export async function activate(context: vscode.ExtensionContext) {
         watcher = vscode.workspace.createFileSystemWatcher(pattern);
         outputChannel.appendLine("Pixi: Config Watcher initialized with RelativePattern.");
     } else {
-        // Fallback for empty workspace? Pixi doesn't really work without workspace folder generally settings-wise
+        // Fallback for empty workspace or global files
         watcher = vscode.workspace.createFileSystemWatcher('**/pixi.{toml,lock}');
         outputChannel.appendLine("Pixi: Config Watcher initialized with global pattern.");
     }
@@ -94,10 +94,8 @@ export async function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`Pixi: Config change detected on ${fsPath}`);
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(async () => {
-            // Unified check logic also respects 'disableConfigChangePrompt'
-            // and prompts if out of sync.
-            // We pass the filename to detect lockfile-specific changes (git stash/pull)
-            // even if status check passes.
+            // Unified check respecting 'disableConfigChangePrompt'.
+            // Passing filename to detect lockfile-specific changes.
             await envManager.checkAndPromptForUpdate(false, fsPath);
         }, 1000);
     };
