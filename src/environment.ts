@@ -155,10 +155,22 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
                 const config = vscode.workspace.getConfiguration('pixi');
                 const showDefault = config.get<boolean>('showDefaultEnvironment', false);
+                const ignoredPatterns = config.get<string[]>('ignoredEnvironments', []);
 
                 return info.environments_info
                     .map((e: any) => e.name)
-                    .filter((n: string) => showDefault || n !== 'default');
+                    .filter((n: string) => {
+                        if (!showDefault && n === 'default') { return false; }
+                        // Check ignored patterns
+                        for (const pattern of ignoredPatterns) {
+                            try {
+                                if (new RegExp(pattern).test(n)) { return false; }
+                            } catch {
+                                console.warn(`Invalid regex in pixi.ignoredEnvironments: ${pattern}`);
+                            }
+                        }
+                        return true;
+                    });
             }
             return [];
         } catch (e) {
@@ -722,7 +734,7 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
             }
 
             return false;
-        } catch (_e) {
+        } catch {
             // If failed, it means out of sync (or error)
             this.log(`Environment out of sync (pixi lock --check failed).`);
 

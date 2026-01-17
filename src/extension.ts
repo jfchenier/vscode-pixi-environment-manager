@@ -118,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Task Support
     if (workspaceFolder) {
-        const taskProvider = new PixiTaskProvider(workspaceFolder.uri.fsPath, pixiManager);
+        const taskProvider = new PixiTaskProvider(workspaceFolder.uri.fsPath, pixiManager, envManager);
         context.subscriptions.push(vscode.tasks.registerTaskProvider(PixiTaskProvider.PixiType, taskProvider));
 
         // Command: Run Task

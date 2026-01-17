@@ -7,8 +7,8 @@ const proxyquire = require('proxyquire').noCallThru();
 // Mock dependencies
 const mockFs = {
     existsSync: (path: string) => {
-        if (path.includes('.pixi/envs/default')) return true;
-        if (path.includes('.pixi/envs/pixi')) return true; // Mock pixi env existence
+        if (path.includes('.pixi/envs/default')) { return true; }
+        if (path.includes('.pixi/envs/pixi')) { return true; } // Mock pixi env existence
         return true; // Default to true for legacy tests unless specific path needed
     }
 };
@@ -247,7 +247,7 @@ suite('Environment Manager Test Suite', () => {
     test('checkAndPromptForUpdate prompts if lockfile check fails', async () => {
         let promptShown = false;
         let activateCalled = false;
-        let lockCheckRun = false;
+
 
         const showInfoOriginal = vscode.window.showInformationMessage;
 
@@ -262,7 +262,7 @@ suite('Environment Manager Test Suite', () => {
 
         const mockExec = async (cmd: string) => {
             if (cmd.includes('lock --check')) {
-                lockCheckRun = true;
+
                 throw new Error('Lockfile out of sync');
             }
             return { stdout: '', stderr: '' };
@@ -375,8 +375,8 @@ suite('Environment Manager Test Suite', () => {
             if (section === 'pixi') {
                 return {
                     get: (key: string, def?: any) => {
-                        if (key === 'defaultEnvironment') return 'prod';
-                        if (key === 'environment') return undefined;
+                        if (key === 'defaultEnvironment') { return 'prod'; }
+                        if (key === 'environment') { return undefined; }
                         return def;
                     },
                     update: () => Promise.resolve()
@@ -441,7 +441,7 @@ suite('Environment Manager Test Suite', () => {
             if (section === 'pixi') {
                 return {
                     get: (key: string, def?: any) => {
-                        if (key === 'defaultEnvironment') return 'prod';
+                        if (key === 'defaultEnvironment') { return 'prod'; }
                         return def;
                     },
                     update: () => Promise.resolve()
@@ -468,5 +468,63 @@ suite('Environment Manager Test Suite', () => {
 
         // Restore
         vscode.workspace.getConfiguration = originalGetConfig2;
+    });
+    test('getEnvironments respects ignoredEnvironments regex setting', async () => {
+        const mockExec = async (cmd: string) => {
+            return {
+                stdout: JSON.stringify({
+                    environments_info: [
+                        { name: 'default' },
+                        { name: 'prod' },
+                        { name: 'test-env' },
+                        { name: 'ci-env' }
+                    ]
+                }),
+                stderr: ''
+            };
+        };
+
+        const mockPixi = new MockPixiManager();
+        mockPixi.getPixiPath = () => '/mock/pixi';
+
+        const mockContext: any = {
+            environmentVariableCollection: { replace: () => { }, clear: () => { } },
+            workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+            subscriptions: []
+        };
+
+        // Stub config
+        const originalGetConfig = vscode.workspace.getConfiguration;
+        // @ts-expect-error: Mock implementation
+        vscode.workspace.getConfiguration = (section: string) => {
+            if (section === 'pixi') {
+                return {
+                    get: (key: string, def?: any) => {
+                        if (key === 'showDefaultEnvironment') { return true; }
+                        if (key === 'ignoredEnvironments') { return ['^test-.*', 'ci-env']; }
+                        return def;
+                    },
+                    update: () => Promise.resolve()
+                } as any;
+            }
+            return originalGetConfig(section);
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+        }
+
+        const envMgr = new TestEnvMgr(mockPixi, mockContext, undefined);
+        (envMgr as any)._exec = mockExec;
+
+        const envs = await envMgr.getEnvironments();
+
+        // Restore
+        vscode.workspace.getConfiguration = originalGetConfig;
+
+        assert.ok(envs.includes('default'), 'Should include default');
+        assert.ok(envs.includes('prod'), 'Should include prod');
+        assert.ok(!envs.includes('test-env'), 'Should ignore test-env (regex match)');
+        assert.ok(!envs.includes('ci-env'), 'Should ignore ci-env (exact match)');
     });
 });

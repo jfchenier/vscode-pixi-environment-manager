@@ -78,8 +78,8 @@ suite('System Pixi Support Test Suite', () => {
 
     setup(() => {
         // Manually clear properties to handle closure capture issues if any
-        for (const k in mockConfig) delete mockConfig[k];
-        for (const k in mockGlobalState) delete mockGlobalState[k];
+        for (const k in mockConfig) { delete mockConfig[k]; }
+        for (const k in mockGlobalState) { delete mockGlobalState[k]; }
         execCalls.length = 0;
         showMessageCalls.length = 0;
         configUpdates.length = 0;
@@ -184,7 +184,7 @@ suite('System Pixi Support Test Suite', () => {
         mockConfig['autoReload'] = false;
 
         const pm = new PixiManager();
-        let reloadCommandCalled = false;
+
         let reloadPromptShown = false;
 
         // Mock window to capture second prompt

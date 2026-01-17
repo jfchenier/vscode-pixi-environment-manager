@@ -1,6 +1,7 @@
+
 import * as vscode from 'vscode';
 import { PixiManager } from './pixi';
-
+import { EnvironmentManager } from './environment';
 
 interface PixiTaskDefinition extends vscode.TaskDefinition {
     type: 'pixi';
@@ -27,7 +28,7 @@ export class PixiTaskProvider implements vscode.TaskProvider {
     static readonly PixiType = 'pixi' as const;
     private pixiPromise: Thenable<vscode.Task[]> | undefined = undefined;
 
-    constructor(private workspaceRoot: string, private pixiManager: PixiManager) { }
+    constructor(private workspaceRoot: string, private pixiManager: PixiManager, private environmentManager: EnvironmentManager) { }
 
     public provideTasks(): Thenable<vscode.Task[]> | undefined {
         if (!this.pixiPromise) {
@@ -41,7 +42,8 @@ export class PixiTaskProvider implements vscode.TaskProvider {
         if (task) {
             const definition: PixiTaskDefinition = <any>_task.definition;
             const envSuffix = definition.environment ? ` (${definition.environment})` : '';
-            return this.getTask(definition.task, definition.environment, definition.task ? `run ${definition.task}${envSuffix}` : 'run', definition);
+            const taskCmd = definition.task ? `run ${definition.task}${envSuffix}` : 'run';
+            return this.getTask(definition.task, definition.environment, taskCmd, definition);
         }
         return undefined;
     }
@@ -70,51 +72,91 @@ export class PixiTaskProvider implements vscode.TaskProvider {
             const jsonStr = stdout.substring(jsonStart);
             const envs: PixiEnvJson[] = JSON.parse(jsonStr);
 
-            const seenTaskKeys = new Set<string>();
+            const config = vscode.workspace.getConfiguration('pixi');
+            const ignoredPatterns = config.get<string[]>('ignoredEnvironments', []);
+            const currentEnv = this.environmentManager.getCurrentEnvName();
 
-            // Identify default features
-            const defaultEnv = envs.find(e => e.environment === 'default') || envs[0];
-            const defaultFeatureNames = new Set<string>();
-            if (defaultEnv) {
-                for (const feature of defaultEnv.features) {
-                    defaultFeatureNames.add(feature.name);
-                }
-            }
+            // Collect all potential tasks
+            // Map<TaskName, Map<EnvName, TaskObject>>
+            const potentialTasks = new Map<string, Map<string, { cmd: string, desc?: string, def: PixiTaskDefinition }>>();
 
             for (const env of envs) {
-                const isDefault = env.environment === 'default';
+                // Check if environment is ignored
+                let isIgnored = false;
+                for (const pattern of ignoredPatterns) {
+                    try {
+                        if (new RegExp(pattern).test(env.environment)) {
+                            isIgnored = true;
+                            break;
+                        }
+                    } catch {
+                        console.warn(`Invalid regex in pixi.ignoredEnvironments: ${pattern}`);
+                    }
+                }
+                if (isIgnored) {
+                    continue;
+                }
+
+                const isDefaultEnv = env.environment === 'default';
 
                 for (const feature of env.features) {
-                    // Skip features that are already covered by default environment
-                    if (!isDefault && defaultFeatureNames.has(feature.name)) {
-                        continue;
-                    }
-
                     for (const taskJson of feature.tasks) {
                         if (taskJson.name.startsWith('_')) {
                             continue;
                         }
-                        // Unique key: name + env
-                        const taskName = isDefault ? taskJson.name : `${taskJson.name} (${env.environment})`;
 
-                        // Filter duplicates based on this display name
-                        if (!seenTaskKeys.has(taskName)) {
-                            seenTaskKeys.add(taskName);
-                            tasks.push(this.getTask(
-                                taskJson.name,
-                                isDefault ? undefined : env.environment,
-                                taskJson.cmd || 'complex',
-                                {
+                        if (!potentialTasks.has(taskJson.name)) {
+                            potentialTasks.set(taskJson.name, new Map());
+                        }
+
+                        const envMap = potentialTasks.get(taskJson.name)!;
+                        // Avoid duplicates within the same environment (shouldn't happen in valid pixi json but safe to check)
+                        if (!envMap.has(env.environment)) {
+                            envMap.set(env.environment, {
+                                cmd: taskJson.cmd || 'complex',
+                                desc: taskJson.description,
+                                def: {
                                     type: PixiTaskProvider.PixiType,
                                     task: taskJson.name,
-                                    environment: isDefault ? undefined : env.environment
-                                },
-                                taskJson.description
-                            ));
+                                    environment: isDefaultEnv ? undefined : env.environment
+                                }
+                            });
                         }
                     }
                 }
             }
+
+            // Apply priority logic
+            // 1. Current Active Environment
+            // 2. Default Environment
+            // 3. All variants
+
+            for (const [taskName, envMap] of potentialTasks) {
+                let selectedEnvs: string[] = [];
+
+                if (envMap.has('default')) {
+                    selectedEnvs = ['default'];
+                } else if (currentEnv && envMap.has(currentEnv)) {
+                    selectedEnvs = [currentEnv];
+                } else {
+                    selectedEnvs = Array.from(envMap.keys());
+                }
+
+                for (const envName of selectedEnvs) {
+                    const info = envMap.get(envName)!;
+                    // If selected is default, we don't show (default) suffix usually, unless specific?
+                    // Existing logic: isDefault ? undefined : env.environment
+
+                    tasks.push(this.getTask(
+                        taskName,
+                        info.def.environment, // Passed correctly from collection above
+                        info.cmd,
+                        info.def,
+                        info.desc
+                    ));
+                }
+            }
+
         } catch (e) {
             console.error("Failed to fetch pixi tasks", e);
         }
