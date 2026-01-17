@@ -9,7 +9,7 @@
     "url": "https://github.com/jfchenier/vscode-pixi-environment-manager.git"
   },
   "license": "MIT",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -63,6 +63,14 @@
           "type": "boolean",
           "default": false,
           "description": "If true, suppresses prompts when the Pixi environment (lockfile) is out of sync with the manifest."
+        },
+        "pixi.ignoredEnvironments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of environment names to ignore in selection lists. Supports regex patterns."
         }
       }
     },

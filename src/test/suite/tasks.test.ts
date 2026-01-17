@@ -15,12 +15,17 @@ class MockPixiManager extends PixiManager {
 suite('Pixi Task Provider Test Suite', () => {
     let mockPixiManager: MockPixiManager;
 
+    let mockEnvManager: any;
+
     setup(() => {
         mockPixiManager = new MockPixiManager();
+        mockEnvManager = {
+            getCurrentEnvName: () => undefined
+        };
     });
 
     test('Parses default environment tasks', async () => {
-        const provider = new PixiTaskProvider('/root', mockPixiManager);
+        const provider = new PixiTaskProvider('/root', mockPixiManager, mockEnvManager);
 
         // Mock exec
         (provider as any).exec = async (cmd: string) => {
@@ -54,41 +59,16 @@ suite('Pixi Task Provider Test Suite', () => {
         assert.strictEqual(exec.commandLine, '"/mock/pixi" run test');
     });
 
-    test('Parses multi-environment tasks with suffix and deduplication', async () => {
-        const provider = new PixiTaskProvider('/root', mockPixiManager);
+    test('Deduplicates tasks based on priority (Default Env)', async () => {
+        const provider = new PixiTaskProvider('/root', mockPixiManager, mockEnvManager);
 
-        // Mock exec
+        // Mock: Task exists in Default and Custom env.
+        // Current Env is undefined (so Default should win).
         (provider as any).exec = async (cmd: string) => {
             return {
                 stdout: JSON.stringify([
-                    {
-                        environment: "default",
-                        features: [
-                            {
-                                name: "default",
-                                tasks: [
-                                    { name: "test", cmd: "pytest" } // Should appear as "test"
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        environment: "cuda",
-                        features: [
-                            {
-                                name: "default", // Inherited feature
-                                tasks: [
-                                    { name: "test", cmd: "pytest" } // Should be IGNORED (deduplicated)
-                                ]
-                            },
-                            {
-                                name: "cuda_feat",
-                                tasks: [
-                                    { name: "train", cmd: "python train.py" } // Should appear as "train (cuda)"
-                                ]
-                            }
-                        ]
-                    }
+                    { environment: "default", features: [{ name: "def", tasks: [{ name: "test", cmd: "echo default" }] }] },
+                    { environment: "custom", features: [{ name: "cust", tasks: [{ name: "test", cmd: "echo custom" }] }] }
                 ]),
                 stderr: ""
             };
@@ -97,24 +77,74 @@ suite('Pixi Task Provider Test Suite', () => {
         const tasks = await provider.provideTasks();
         assert.ok(tasks);
 
-        // Expected: "test" (default), "train (cuda)" (cuda)
-        // "test" (cuda) should be skipped because it belongs to 'default' feature which is in default env
+        // Should only show one "test" (from default)
+        const tests = tasks!.filter(t => t.name.startsWith('test'));
+        assert.strictEqual(tests.length, 1);
+        assert.strictEqual(tests[0].name, 'test');
 
-        // Expected: "test" (default), "train (cuda)" (cuda)
-        // "test" (cuda) should be skipped because it belongs to 'default' feature which is in default env
+        const exec = tests[0].execution as vscode.ShellExecution;
+        // Default env arg is usually empty or depends on implementation. 
+        // Our implementation: isDefault ? undefined : env.environment
+        // "run test" (no -e)
+        assert.strictEqual(exec.commandLine, '"/mock/pixi" run test');
+    });
+
+    test('Deduplicates tasks based on priority (Active Env - Default Wins)', async () => {
+        mockEnvManager.getCurrentEnvName = () => 'custom';
+        const provider = new PixiTaskProvider('/root', mockPixiManager, mockEnvManager);
+
+        // Mock: Task exists in Default and Custom env.
+        // Current Env is 'custom'.
+        // PRIORITY CHANGE: Default should win despite 'custom' being active.
+        (provider as any).exec = async (cmd: string) => {
+            return {
+                stdout: JSON.stringify([
+                    { environment: "default", features: [{ name: "def", tasks: [{ name: "test", cmd: "echo default" }] }] },
+                    { environment: "custom", features: [{ name: "cust", tasks: [{ name: "test", cmd: "echo custom" }] }] }
+                ]),
+                stderr: ""
+            };
+        };
+
+        const tasks = await provider.provideTasks();
+        assert.ok(tasks);
+
+        // Should only show one "test" (from default)
+        const tests = tasks!.filter(t => t.name.startsWith('test'));
+        assert.strictEqual(tests.length, 1);
+
+        // Expect 'test' (from default) not 'test (custom)'
+        assert.strictEqual(tests[0].name, 'test');
+
+        const exec = tests[0].execution as vscode.ShellExecution;
+        // Should NOT include -e custom
+        assert.ok(exec.commandLine && !exec.commandLine.includes('-e custom'), 'Should not include -e custom arg (Default priority)');
+    });
+
+    test('Shows all variants if no priority match', async () => {
+        mockEnvManager.getCurrentEnvName = () => 'other';
+        const provider = new PixiTaskProvider('/root', mockPixiManager, mockEnvManager);
+
+        // Mock: Task in EnvA, EnvB. No Default. Current is Other.
+        (provider as any).exec = async (cmd: string) => {
+            return {
+                stdout: JSON.stringify([
+                    { environment: "envA", features: [{ name: "a", tasks: [{ name: "test", cmd: "echo A" }] }] },
+                    { environment: "envB", features: [{ name: "b", tasks: [{ name: "test", cmd: "echo B" }] }] }
+                ]),
+                stderr: ""
+            };
+        };
+
+        const tasks = await provider.provideTasks();
+        assert.ok(tasks);
 
         const names = tasks!.map(t => t.name).sort();
-        assert.deepStrictEqual(names, ['test', 'train (cuda)']);
-
-        const cudaTask = tasks!.find(t => t.name === 'train (cuda)');
-        assert.ok(cudaTask);
-        const exec = cudaTask!.execution as vscode.ShellExecution;
-        assert.ok(exec.commandLine && exec.commandLine.includes('-e cuda'), 'Should include -e cuda arg');
+        assert.deepStrictEqual(names, ['test (envA)', 'test (envB)']);
     });
 
     test('Filters hidden tasks', async () => {
-        const provider = new PixiTaskProvider('/root', mockPixiManager);
-
+        const provider = new PixiTaskProvider('/root', mockPixiManager, mockEnvManager);
         (provider as any).exec = async (cmd: string) => {
             return {
                 stdout: JSON.stringify([
@@ -139,5 +169,55 @@ suite('Pixi Task Provider Test Suite', () => {
         assert.ok(tasks);
         assert.strictEqual(tasks!.length, 1);
         assert.strictEqual(tasks![0].name, 'visible');
+    });
+
+    test('Respects ignoredEnvironments setting', async () => {
+        const provider = new PixiTaskProvider('/root', mockPixiManager, mockEnvManager);
+
+        (provider as any).exec = async (cmd: string) => {
+            return {
+                stdout: JSON.stringify([
+                    {
+                        environment: "default",
+                        features: [{ name: "default", tasks: [{ name: "task_default", cmd: "echo" }] }]
+                    },
+                    {
+                        environment: "ignored_env",
+                        features: [{ name: "feat", tasks: [{ name: "task_ignored", cmd: "echo" }] }]
+                    },
+                    {
+                        environment: "visible_env",
+                        features: [{ name: "feat2", tasks: [{ name: "task_visible", cmd: "echo" }] }]
+                    }
+                ]),
+                stderr: ""
+            };
+        };
+
+        // Stub config
+        const originalGetConfig = vscode.workspace.getConfiguration;
+        // @ts-expect-error: Mock implementation
+        vscode.workspace.getConfiguration = (section: string) => {
+            if (section === 'pixi') {
+                return {
+                    get: (key: string, def?: any) => {
+                        if (key === 'ignoredEnvironments') {return ['ignored_.*'];}
+                        return def;
+                    }
+                } as any;
+            }
+            return originalGetConfig(section);
+        };
+
+        const tasks = await provider.provideTasks();
+
+        // Restore
+        vscode.workspace.getConfiguration = originalGetConfig;
+
+        assert.ok(tasks);
+        const names = tasks!.map(t => t.name);
+        assert.ok(names.includes('task_default'));
+        assert.ok(names.includes('task_visible (visible_env)'));
+        assert.ok(!names.includes('task_ignored (ignored_env)'), 'Should ignore task from ignored environment');
     });
 });
