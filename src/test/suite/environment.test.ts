@@ -527,4 +527,81 @@ suite('Environment Manager Test Suite', () => {
         assert.ok(!envs.includes('test-env'), 'Should ignore test-env (regex match)');
         assert.ok(!envs.includes('ci-env'), 'Should ignore ci-env (exact match)');
     });
+
+    test('activate should NOT override forceEnv with default environment (fresh clone scenario)', async () => {
+        let activatedEnv: string | undefined;
+        let infoCallCount = 0;
+
+        const mockExec = async (cmd: string) => {
+            if (cmd.includes('info --json')) {
+                infoCallCount++;
+                if (infoCallCount === 1) {
+                    // First call (in autoActivate) - simulate no environments found yet (or pixi not installed)
+                    return {
+                        stdout: JSON.stringify({ environments_info: [] }),
+                        stderr: ''
+                    };
+                } else {
+                    // Second call (in activate) - after ensurePixi, environments are found
+                    return {
+                        stdout: JSON.stringify({ environments_info: [{ name: 'default' }, { name: 'prod' }] }),
+                        stderr: ''
+                    };
+                }
+            }
+            if (cmd.includes('shell-hook')) {
+                const match = cmd.match(/-e "([^"]+)"/);
+                activatedEnv = match ? match[1] : 'default';
+                return { stdout: '{}', stderr: '' };
+            }
+            return { stdout: '', stderr: '' };
+        };
+
+        const mockPixi = new MockPixiManager();
+        mockPixi.getPixiPath = () => '/mock/pixi';
+        // Simulate ensurePixi doing nothing but succeeding
+        mockPixi.ensurePixi = async () => { };
+        mockPixi.isPixiInstalled = async () => true; // Always true for this flow?
+        // Wait, autoActivate calls ensurePixi. 
+        // We need to simulate autoActivate, not just activate.
+
+        const mockContext: any = {
+            environmentVariableCollection: { replace: () => { }, clear: () => { } },
+            workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+            subscriptions: []
+        };
+
+        // Stub config
+        const originalGetConfig = vscode.workspace.getConfiguration;
+        // @ts-expect-error: Mock implementation
+        vscode.workspace.getConfiguration = (section: string) => {
+            if (section === 'pixi') {
+                return {
+                    get: (key: string, def?: any) => {
+                        if (key === 'defaultEnvironment') { return 'prod'; }
+                        if (key === 'environment') { return 'default'; }
+                        return def;
+                    },
+                    update: () => Promise.resolve()
+                } as any;
+            }
+            return originalGetConfig(section);
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+            public override async runInstallInTerminal() { return Promise.resolve(); }
+        }
+
+        const envMgr = new TestEnvMgr(mockPixi, mockContext, undefined);
+        (envMgr as any)._exec = mockExec;
+
+        // Call autoActivate instead of activate directly
+        await envMgr.autoActivate();
+
+        // Restore
+        vscode.workspace.getConfiguration = originalGetConfig;
+
+        assert.strictEqual(activatedEnv, 'prod', 'Should activate forced environment (prod)');
+    });
 });
