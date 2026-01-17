@@ -356,21 +356,19 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
         let selectedEnv = forceEnv || '';
 
-        if (!selectedEnv && !silent && envs.length > 0) {
-            const pick = await vscode.window.showQuickPick(envs, {
-                placeHolder: 'Select Pixi Environment to Activate'
-            });
-            if (!pick) { return; }
-            selectedEnv = pick;
-        } else {
-            // Silent or Auto-selection Logic
-            // 1. Try to use currently configured/saved environment
-            if (currentEnv && (envs.includes(currentEnv) || currentEnv === 'default')) {
-                selectedEnv = currentEnv;
-            }
-            // 2. Fallback: Pick the first available (non-default) environment if multiple exist
-            else if (envs.length > 0) {
-                selectedEnv = envs[0];
+        if (!selectedEnv) {
+            if (!silent && envs.length > 0) {
+                const pick = await vscode.window.showQuickPick(envs, {
+                    placeHolder: 'Select Pixi Environment to Activate'
+                });
+                if (!pick) { return; }
+                selectedEnv = pick;
+            } else {
+                // Silent or Auto-selection Logic
+                // 1. Try to use currently configured/saved environment
+                if (currentEnv && (envs.includes(currentEnv) || currentEnv === 'default')) {
+                    selectedEnv = currentEnv;
+                }
             }
         }
 
