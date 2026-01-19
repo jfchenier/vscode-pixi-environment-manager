@@ -158,6 +158,12 @@ export async function activate(context: vscode.ExtensionContext) {
             context.subscriptions.push(watcher.onDidCreate(() => taskProvider.invalidate()));
             context.subscriptions.push(watcher.onDidDelete(() => taskProvider.invalidate()));
         }
+
+        context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('pixi.ignoredEnvironments')) {
+                taskProvider.invalidate();
+            }
+        }));
     }
 }
 
