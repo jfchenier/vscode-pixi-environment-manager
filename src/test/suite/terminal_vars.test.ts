@@ -1,7 +1,20 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { EnvironmentManager } from '../../environment';
+import { EnvironmentManager as RealEnvironmentManager } from '../../environment';
+const proxyquire = require('proxyquire').noCallThru();
+
+// Mock fs to ensure existsSync returns true, preventing forceInstall
+const mockFs = {
+    existsSync: (path: string) => true
+};
+
+// Load EnvironmentManager with mocks
+const { EnvironmentManager } = proxyquire('../../environment', {
+    'fs': mockFs,
+    'vscode': vscode
+});
+
 import { PixiManager } from '../../pixi';
 
 class MockPixiManager extends PixiManager {
@@ -12,6 +25,9 @@ class MockPixiManager extends PixiManager {
         return '/mock/pixi';
     }
 }
+
+// Helper cast
+const MockedEnvironmentManager = EnvironmentManager as typeof RealEnvironmentManager;
 
 suite('Terminal Variables Test Suite', () => {
 
@@ -71,7 +87,7 @@ suite('Terminal Variables Test Suite', () => {
         };
         const mockPixi = new MockPixiManager();
 
-        class TestEnvironmentManager extends EnvironmentManager {
+        class TestEnvironmentManager extends MockedEnvironmentManager {
             public override getWorkspaceFolderURI(): vscode.Uri {
                 return vscode.Uri.file('/mock/workspace');
             }

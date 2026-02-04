@@ -159,7 +159,12 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
                 return info.environments_info
                     .map((e: any) => e.name)
-                    .filter((n: string) => {
+                    .filter((n: string, _: number, arr: string[]) => {
+                        // Always show default if it's the only environment
+                        if (n === 'default' && arr.length === 1 && arr[0] === 'default') {
+                            return true;
+                        }
+
                         if (!showDefault && n === 'default') { return false; }
                         // Check ignored patterns
                         for (const pattern of ignoredPatterns) {
@@ -182,6 +187,23 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
     public async autoActivate(overrideSavedState: boolean = false) {
         let savedEnv = overrideSavedState ? undefined : this._context.workspaceState.get<string>(EnvironmentManager.envStateKey);
         this.log(`AutoActivate: Saved state is '${savedEnv}' (override: ${overrideSavedState})`);
+
+        if (savedEnv) {
+            // Validate that the saved environment actually exists on disk.
+            // If the .pixi directory was deleted, we must clear this state to trigger the "fresh start" logic below (which ensures pixi is installed).
+            const workspaceUri = this.getWorkspaceFolderURI();
+            if (workspaceUri) {
+                // Assumption: env directory matches env name.
+                const envDir = path.join(workspaceUri.fsPath, '.pixi', 'envs', savedEnv);
+                if (!fs.existsSync(envDir)) {
+                    this.log(`AutoActivate: Saved environment '${savedEnv}' not found at '${envDir}'. Clearing state.`);
+                    savedEnv = undefined;
+                    // Clear persistent state immediately so subsequent logic behaves as if fresh.
+                    await this._context.workspaceState.update(EnvironmentManager.envStateKey, undefined);
+                    vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', false);
+                }
+            }
+        }
 
         // If no saved environment from a previous session (or overridden), check user configuration
         if (!savedEnv) {
@@ -358,11 +380,15 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
         if (!selectedEnv) {
             if (!silent && envs.length > 0) {
-                const pick = await vscode.window.showQuickPick(envs, {
-                    placeHolder: 'Select Pixi Environment to Activate'
-                });
-                if (!pick) { return; }
-                selectedEnv = pick;
+                if (envs.length === 1) {
+                    selectedEnv = envs[0];
+                } else {
+                    const pick = await vscode.window.showQuickPick(envs, {
+                        placeHolder: 'Select Pixi Environment to Activate'
+                    });
+                    if (!pick) { return; }
+                    selectedEnv = pick;
+                }
             } else {
                 // Silent or Auto-selection Logic
                 // 1. Try to use currently configured/saved environment
@@ -397,6 +423,14 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
         const workspaceUri = this.getWorkspaceFolderURI();
         if (!workspaceUri) { return; }
+
+        // If the environment directory does not exist, force an install.
+        // This handles cases where .pixi is deleted but state thinks it's active.
+        const directoryName = envName || 'default';
+        const envPath = path.join(workspaceUri.fsPath, '.pixi', 'envs', directoryName);
+        if (!fs.existsSync(envPath)) {
+            forceInstall = true;
+        }
 
         const pixiPath = this._pixiManager.getPixiPath();
 
