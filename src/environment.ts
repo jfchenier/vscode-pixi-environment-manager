@@ -183,6 +183,23 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
         let savedEnv = overrideSavedState ? undefined : this._context.workspaceState.get<string>(EnvironmentManager.envStateKey);
         this.log(`AutoActivate: Saved state is '${savedEnv}' (override: ${overrideSavedState})`);
 
+        if (savedEnv) {
+            // Validate that the saved environment actually exists on disk.
+            // If the .pixi directory was deleted, we must clear this state to trigger the "fresh start" logic below (which ensures pixi is installed).
+            const workspaceUri = this.getWorkspaceFolderURI();
+            if (workspaceUri) {
+                // Assumption: env directory matches env name.
+                const envDir = path.join(workspaceUri.fsPath, '.pixi', 'envs', savedEnv);
+                if (!fs.existsSync(envDir)) {
+                    this.log(`AutoActivate: Saved environment '${savedEnv}' not found at '${envDir}'. Clearing state.`);
+                    savedEnv = undefined;
+                    // Clear persistent state immediately so subsequent logic behaves as if fresh.
+                    await this._context.workspaceState.update(EnvironmentManager.envStateKey, undefined);
+                    vscode.commands.executeCommand('setContext', 'pixi.isEnvironmentActive', false);
+                }
+            }
+        }
+
         // If no saved environment from a previous session (or overridden), check user configuration
         if (!savedEnv) {
             const config = vscode.workspace.getConfiguration('pixi');
@@ -397,6 +414,14 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
         const workspaceUri = this.getWorkspaceFolderURI();
         if (!workspaceUri) { return; }
+
+        // If the environment directory does not exist, force an install.
+        // This handles cases where .pixi is deleted but state thinks it's active.
+        const directoryName = envName || 'default';
+        const envPath = path.join(workspaceUri.fsPath, '.pixi', 'envs', directoryName);
+        if (!fs.existsSync(envPath)) {
+            forceInstall = true;
+        }
 
         const pixiPath = this._pixiManager.getPixiPath();
 
