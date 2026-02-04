@@ -108,7 +108,7 @@ suite('Offline Flow Test Suite', () => {
     const fsMock = {
         existsSync: (p: string) => {
             if (p.includes('pixi.toml')) { return true; }
-            if (p.endsWith('activate.sh')) { return true; } // Mock activation script existence
+            if (p.endsWith('activate.sh') || p.endsWith('activate.bat')) { return true; } // Mock activation script existence
             if (p.includes('.pixi/envs')) { return true; }
             return false;
         },
@@ -271,7 +271,11 @@ suite('Offline Flow Test Suite', () => {
         assert.ok(cmdLine.includes('--output-directory'), 'Should specify output directory');
 
         // 2. Check activation was triggered
-        const activateCmd = execCommands.find(c => c.includes('printenv') && c.includes('activate.sh'));
+        const isWin = process.platform === 'win32';
+        const expectedCmdPart = isWin ? 'set' : 'printenv';
+        const expectedScript = isWin ? 'activate.bat' : 'activate.sh';
+
+        const activateCmd = execCommands.find(c => c.includes(expectedCmdPart) && c.includes(expectedScript));
         assert.ok(activateCmd, 'Should attempt to activate and capture environment after unpacking');
 
         // 3. Verify Reload Window

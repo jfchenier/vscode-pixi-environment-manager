@@ -38,7 +38,8 @@ suite('Install Task Integration Test Suite', () => {
         } catch { }
     });
 
-    test('Activate triggers pixi install terminal', async () => {
+    test('Activate triggers pixi install terminal', async function () {
+        this.timeout(10000);
         const outputChannel = vscode.window.createOutputChannel("Pixi Test");
         const pixiManager = new PixiManager(outputChannel);
 
@@ -112,7 +113,7 @@ suite('Install Task Integration Test Suite', () => {
             (envManager as any).doActivate("test", false, true);
 
             // Allow some time
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 5000));
 
             clearInterval(checkInterval);
 

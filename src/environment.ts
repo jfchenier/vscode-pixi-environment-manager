@@ -575,19 +575,9 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
             };
 
             const installCmd = `"${pixiPath}" install${envName ? ` -e "${envName}"` : ''}`;
-
-            let shellHookCmd = '';
-            const msg = `Executing Pixi Task: ${installCmd}`;
-            let fullCommand = '';
-
-            if (process.platform === 'win32') {
-                // Windows
-                fullCommand = `echo '${msg}' ; ${installCmd}`;
-            } else {
-                // Linux/Mac
-                shellHookCmd = ` && eval "$("${pixiPath}" shell-hook${envName ? ` -e "${envName}"` : ''})"`;
-                fullCommand = `echo '${msg}' && ${installCmd}${shellHookCmd}`;
-            }
+            const fullCommand = process.platform === 'win32'
+                ? `& \\"${pixiPath}\\" install${envName ? ` -e \\"${envName}\\"` : ''}`
+                : installCmd;
 
             const shellExecutionOptions = this.getSafeShellExecutionOptions(workspaceUri.fsPath);
 

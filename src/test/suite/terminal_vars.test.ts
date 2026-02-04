@@ -90,6 +90,7 @@ suite('Terminal Variables Test Suite', () => {
         assert.strictEqual(storedVars.has('TERMINFO'), false, 'TERMINFO should be removed from collection');
 
         // PATH should be applied (with pixi bin prepended)
-        assert.strictEqual(storedVars.get('PATH'), '/mock:/new/path', 'Valid variables should be applied');
+        const expectedPath = process.platform === 'win32' ? '/mock;/new/path' : '/mock:/new/path';
+        assert.strictEqual(storedVars.get('PATH'), expectedPath, 'Valid variables should be applied');
     });
 });
