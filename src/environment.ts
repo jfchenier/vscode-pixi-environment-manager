@@ -159,7 +159,12 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
                 return info.environments_info
                     .map((e: any) => e.name)
-                    .filter((n: string) => {
+                    .filter((n: string, _: number, arr: string[]) => {
+                        // Always show default if it's the only environment
+                        if (n === 'default' && arr.length === 1 && arr[0] === 'default') {
+                            return true;
+                        }
+
                         if (!showDefault && n === 'default') { return false; }
                         // Check ignored patterns
                         for (const pattern of ignoredPatterns) {
@@ -375,11 +380,15 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
 
         if (!selectedEnv) {
             if (!silent && envs.length > 0) {
-                const pick = await vscode.window.showQuickPick(envs, {
-                    placeHolder: 'Select Pixi Environment to Activate'
-                });
-                if (!pick) { return; }
-                selectedEnv = pick;
+                if (envs.length === 1) {
+                    selectedEnv = envs[0];
+                } else {
+                    const pick = await vscode.window.showQuickPick(envs, {
+                        placeHolder: 'Select Pixi Environment to Activate'
+                    });
+                    if (!pick) { return; }
+                    selectedEnv = pick;
+                }
             } else {
                 // Silent or Auto-selection Logic
                 // 1. Try to use currently configured/saved environment
