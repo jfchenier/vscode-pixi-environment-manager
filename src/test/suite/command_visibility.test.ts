@@ -109,6 +109,7 @@ suite('Command Visibility Context Test Suite', () => {
 
     test('Activate Environment -> pixi.isEnvironmentActive = true', async () => {
         mockFs['.pixi'] = true;
+        mockFs['.pixi/envs/default'] = true;
         // Mock context for environment variable collection
         const mockContext = {
             environmentVariableCollection: { clear: () => { }, replace: () => { } },

@@ -206,6 +206,56 @@ suite('Environment Manager Test Suite', () => {
         await config.update('showDefaultEnvironment', undefined, vscode.ConfigurationTarget.Global);
     });
 
+    test('getEnvironments includes default if it is the only environment, even if showDefaultEnvironment is false', async () => {
+        const mockExec = async (cmd: string) => {
+            return {
+                stdout: JSON.stringify({
+                    environments_info: [
+                        { name: 'default' }
+                    ]
+                }),
+                stderr: ''
+            };
+        };
+
+        const mockPixi = new MockPixiManager();
+        mockPixi.getPixiPath = () => '/mock/workspace/.pixi/bin/pixi';
+
+        const mockContext: any = {
+            environmentVariableCollection: {
+                replace: () => { },
+                clear: () => { },
+                persistent: true
+            },
+            workspaceState: {
+                get: () => undefined,
+                update: () => Promise.resolve()
+            },
+            subscriptions: []
+        };
+
+        class TestEnvironmentManager extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI(): vscode.Uri {
+                return vscode.Uri.file('/mock/workspace');
+            }
+        }
+
+        const envManager = new TestEnvironmentManager(mockPixi, mockContext, undefined);
+        (envManager as any)._exec = mockExec;
+
+        // Ensure config is false
+        const config = vscode.workspace.getConfiguration('pixi');
+        await config.update('showDefaultEnvironment', false, vscode.ConfigurationTarget.Global);
+
+        // Test Default (False) but ONLY default env exists
+        const envsFiltered = await (envManager as any).getEnvironments();
+        assert.ok(envsFiltered.includes('default'), 'Should always show default if it is the only environment');
+        assert.strictEqual(envsFiltered.length, 1, 'Should return exactly one environment');
+
+        // Cleanup
+        await config.update('showDefaultEnvironment', undefined, vscode.ConfigurationTarget.Global);
+    });
+
     test('Deactivate clears environment and state', async () => {
         let storedEnv: string | undefined = 'pixi';
         let clearCalled = false;
@@ -603,5 +653,101 @@ suite('Environment Manager Test Suite', () => {
         vscode.workspace.getConfiguration = originalGetConfig;
 
         assert.strictEqual(activatedEnv, 'prod', 'Should activate forced environment (prod)');
+    });
+
+    test('activate selects the only available environment without prompting', async function () {
+        this.timeout(5000);
+        let activatedEnv: string | undefined;
+        let quickPickCalled = false;
+
+        // Stub showQuickPick to detect if called
+        const originalShowQuickPick = vscode.window.showQuickPick;
+        (vscode.window as any).showQuickPick = async (items: any) => {
+            quickPickCalled = true;
+            return items[0]; // Mimic selection if called (fail safe, but assertion checks call count)
+        };
+
+        // Stub showInformationMessage to avoid blocking
+        const originalShowInfo = vscode.window.showInformationMessage;
+        (vscode.window as any).showInformationMessage = async (msg: string) => {
+            return undefined; // Simulate no action/dismiss
+        };
+
+        // Stub withProgress to execute callback immediately
+        const originalWithProgress = vscode.window.withProgress;
+        (vscode.window as any).withProgress = async (options: any, task: any) => {
+            return await task();
+        };
+
+        // Stub getConfiguration
+        const originalGetConfig = vscode.workspace.getConfiguration;
+        (vscode.workspace as any).getConfiguration = (section: string) => {
+            if (section === 'pixi') {
+                return {
+                    get: (key: string, def?: any) => {
+                        if (key === 'showDefaultEnvironment') { return false; }
+                        if (key === 'ignoredEnvironments') { return []; }
+                        return def;
+                    }
+                } as any;
+            }
+            return originalGetConfig(section);
+        };
+
+        // Override mockFs.existsSync to return false for offline env directory
+        const originalExistsSync = mockFs.existsSync;
+        mockFs.existsSync = (path: string) => {
+            // Return false for offline env to prevent it being added to envs list
+            if (path.includes('.pixi/envs/env')) { return false; }
+            return originalExistsSync(path);
+        };
+
+        const mockExec = async (cmd: string) => {
+            if (cmd.includes('info --json')) {
+                return {
+                    stdout: JSON.stringify({
+                        environments_info: [{ name: 'only_env' }]
+                    }),
+                    stderr: ''
+                };
+            }
+            if (cmd.includes('shell-hook')) {
+                const match = cmd.match(/-e "([^"]+)"/);
+                activatedEnv = match ? match[1] : 'default';
+                return { stdout: '{}', stderr: '' };
+            }
+            return { stdout: '', stderr: '' };
+        };
+
+        const mockPixi = new MockPixiManager();
+        mockPixi.getPixiPath = () => '/mock/pixi';
+        mockPixi.isPixiInstalled = async () => true;
+
+        const mockContext: any = {
+            environmentVariableCollection: { replace: () => { }, clear: () => { } },
+            workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+            subscriptions: []
+        };
+
+        class TestEnvMgr extends MockedEnvironmentManager {
+            public override getWorkspaceFolderURI() { return vscode.Uri.file('/mock/ws'); }
+            public override async runInstallInTerminal() { return Promise.resolve(); }
+        }
+
+        const envMgr = new TestEnvMgr(mockPixi, mockContext, undefined);
+        (envMgr as any)._exec = mockExec;
+
+        // Activate NOT silent, so it WOULD prompt if multiple envs existed
+        await envMgr.activate(false);
+
+        // Restore
+        vscode.window.showQuickPick = originalShowQuickPick;
+        vscode.window.showInformationMessage = originalShowInfo;
+        vscode.window.withProgress = originalWithProgress;
+        vscode.workspace.getConfiguration = originalGetConfig;
+        mockFs.existsSync = originalExistsSync;
+
+        assert.strictEqual(quickPickCalled, false, 'Should NOT call showQuickPick for single environment');
+        assert.strictEqual(activatedEnv, 'only_env', 'Should activate the only available environment');
     });
 });

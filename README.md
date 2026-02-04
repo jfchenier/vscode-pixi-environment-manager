@@ -12,7 +12,7 @@ A comprehensive VS Code extension for managing [Pixi](https://pixi.sh) environme
 
 ## 🚀 Why this extension?
 
-While there is an official Pixi extension, **Pixi Environment Manager** focuses on a different set of needs:
+While there is an [official Pixi extension](https://github.com/jjjermiah/pixi-vscode), **Pixi Environment Manager** focuses on a different set of needs:
 
 | Feature | Pixi Environment Manager (This Extension) | Official Pixi Extension |
 | :--- | :--- | :--- |
