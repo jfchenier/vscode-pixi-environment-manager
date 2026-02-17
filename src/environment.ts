@@ -277,14 +277,16 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
             const defaultEnv = config.get<string>('environment', 'default');
             currentEnv = savedEnv || defaultEnv;
 
-            // Clear any existing environment variables to ensure a clean slate
-            // This prevents persistent "pollution" (e.g. TERM/TERMINFO) from previous incomplete/bad activations.
-            this._context.environmentVariableCollection.clear();
+            if (silent) {
+                // Clear any existing environment variables to ensure a clean slate
+                // This prevents persistent "pollution" (e.g. TERM/TERMINFO) from previous incomplete/bad activations.
+                this._context.environmentVariableCollection.clear();
 
-            await this.checkMicromambaConflict();
+                await this.checkMicromambaConflict();
+            }
 
             // --- CACHE VARS ---
-            if (currentEnv === offlineName) {
+            if (silent && currentEnv === offlineName) {
                 const cached = this._context.workspaceState.get<any>(EnvironmentManager.cachedEnvKey);
                 if (cached && cached.envName === offlineName && cached.envVars) {
                     this.log(`Found cached environment for '${offlineName}'. Applying instantaneously.`);
@@ -330,6 +332,8 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
                         title: 'Select Environment'
                     });
                     if (pick === offlineName) {
+                        this._context.environmentVariableCollection.clear();
+                        await this.checkMicromambaConflict();
                         await this._context.workspaceState.update(EnvironmentManager.envStateKey, offlineName);
                         // Trigger logic directly
                         if (workspaceRoot) {
@@ -399,6 +403,10 @@ export class EnvironmentManager implements IPixiEnvironmentManager {
         }
 
         if (selectedEnv) {
+            if (!silent) {
+                this._context.environmentVariableCollection.clear();
+                await this.checkMicromambaConflict();
+            }
             await this._context.workspaceState.update(EnvironmentManager.envStateKey, selectedEnv);
 
             // If offline selected, trigger offline logic explicitly

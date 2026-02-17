@@ -52,7 +52,7 @@ suite('Micromamba Conflict Test Suite', () => {
                 exitStatus: { code: 0 }
             }),
             withProgress: async (opts: any, task: any) => await task({ report: () => { } }),
-            showQuickPick: () => Promise.resolve(undefined)
+            showQuickPick: (items: any) => Promise.resolve(items && items.length > 0 ? items[0] : undefined)
         },
         StatusBarAlignment: { Left: 1, Right: 2 },
         // Minimal mocks effectively needed for EnvironmentManager instantiation
