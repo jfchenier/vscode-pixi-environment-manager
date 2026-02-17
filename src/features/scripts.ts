@@ -149,7 +149,10 @@ if exist "%_TEMP_SCRIPT%" (
     call "%_TEMP_SCRIPT%"
     del "%_TEMP_SCRIPT%"
 )
-goto :cleanup
+
+call :cleanup_vars
+set "_PARENT_PROC="
+exit /b
 
 :activate_powershell
 
@@ -161,12 +164,7 @@ if not "%_TARGET_ENV%"=="" (
     call pixi shell-hook --shell powershell > "%_PS_TEMP_SCRIPT%"
 )
 
-rem Cleanup variables before spawning to avoid clutter
-set "_TARGET_ENV="
-set "_COUNT="
-set "_LAST_ENV="
-set "_TEMP_SCRIPT="
-set "SCRIPT_DIR="
+call :cleanup_vars
 
 rem Spawn nested shell
 call %_PARENT_PROC% -NoExit -ExecutionPolicy Bypass -File "%_PS_TEMP_SCRIPT%"
@@ -175,13 +173,13 @@ del "%_PS_TEMP_SCRIPT%"
 set "_PARENT_PROC="
 exit /b
 
-:cleanup
+:cleanup_vars
 set "_TARGET_ENV="
 set "_COUNT="
 set "_LAST_ENV="
 set "_TEMP_SCRIPT="
 set "SCRIPT_DIR="
-set "_PARENT_PROC="
+exit /b
 `;
             try {
                 await fs.promises.writeFile(batPath, batContent);
