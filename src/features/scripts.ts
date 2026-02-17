@@ -123,6 +123,20 @@ exit /b 1
 :activate
 set "PATH=%SCRIPT_DIR%.pixi\\bin;%PATH%"
 
+set "_PARENT_PROC="
+set "_PPROC_TMP=%TEMP%\\pixi_pproc_%RANDOM%"
+
+rem Check if running from PowerShell to auto-spawn appropriate shell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $p=Get-CimInstance Win32_Process -Filter \\"ProcessId=$PID\\"; $pp=Get-CimInstance Win32_Process -Filter \\"ProcessId=$($p.ParentProcessId)\\"; $gp=Get-CimInstance Win32_Process -Filter \\"ProcessId=$($pp.ParentProcessId)\\"; if ($gp.Name -match 'pwsh') {Write-Host 'pwsh'} elseif ($gp.Name -match 'powershell') {Write-Host 'powershell'}" > "%_PPROC_TMP%"
+set /p _PARENT_PROC=<"%_PPROC_TMP%"
+del "%_PPROC_TMP%" 2>nul
+set "_PPROC_TMP="
+
+
+
+if not "%_PARENT_PROC%"=="" goto :activate_powershell
+
+:activate_cmd
 set "_TEMP_SCRIPT=%TEMP%\\pixi_env_%RANDOM%.bat"
 
 if not "%_TARGET_ENV%"=="" (
@@ -135,12 +149,39 @@ if exist "%_TEMP_SCRIPT%" (
     call "%_TEMP_SCRIPT%"
     del "%_TEMP_SCRIPT%"
 )
+goto :cleanup
 
+:activate_powershell
+
+set "_PS_TEMP_SCRIPT=%TEMP%\\pixi_env_%RANDOM%.ps1"
+
+if not "%_TARGET_ENV%"=="" (
+    call pixi shell-hook --shell powershell -e "%_TARGET_ENV%" > "%_PS_TEMP_SCRIPT%"
+) else (
+    call pixi shell-hook --shell powershell > "%_PS_TEMP_SCRIPT%"
+)
+
+rem Cleanup variables before spawning to avoid clutter
 set "_TARGET_ENV="
 set "_COUNT="
 set "_LAST_ENV="
 set "_TEMP_SCRIPT="
 set "SCRIPT_DIR="
+
+rem Spawn nested shell
+call %_PARENT_PROC% -NoExit -ExecutionPolicy Bypass -File "%_PS_TEMP_SCRIPT%"
+
+del "%_PS_TEMP_SCRIPT%"
+set "_PARENT_PROC="
+exit /b
+
+:cleanup
+set "_TARGET_ENV="
+set "_COUNT="
+set "_LAST_ENV="
+set "_TEMP_SCRIPT="
+set "SCRIPT_DIR="
+set "_PARENT_PROC="
 `;
             try {
                 await fs.promises.writeFile(batPath, batContent);
